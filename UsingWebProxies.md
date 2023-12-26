@@ -3,7 +3,7 @@ A High Level Overview of the Web Proxies Module
 
 ## Web Proxy
 
-###Proxy Setup
+### Proxy Setup
 
 ### Intercepting Web Requests
 
