@@ -11,9 +11,12 @@ This section covers how to intercept and begin manipulating web requests. Specif
 
 ## Interception Responses
 
-## Automatic Modification
+This section details how to intercept our response and make changes to the css to be able to input what ever want into the text box instead of changing our input being sent.
 
+## Automatic Modification
+This section covers adding rules in the match and replace section in burp to perform the steps we did in the above sections.
 ## Repeating Requests
+This section covers how to use to the proxy repeater. Specifically, you have to make the same request you made in the previous section to the ping search to begin doing command injection. Then you need to send that request to the repeater so that we can easily run other commmands on the same search function. Then we need to do a directory traversal upwards to find the new flag. In the end the solution to this challenge was `ip=;cat ../../../flag.txt;`
 
 ## Encoding/Decoding
 
