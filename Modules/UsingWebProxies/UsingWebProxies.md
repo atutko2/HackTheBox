@@ -63,6 +63,12 @@ In the end the solution for this test was to run the same attack but with `GET /
 
 ## ZAP Fuzzer
 
+This covers running a fuzz on using the Zap Fuzzer which is MUCH faster than the burp fuzzer because it doesn't have the restrictions on uses. It also has built in lists for Fuzzing and you can add more later. I will be using Zap for any fuzzing I do. 
+
+This test requires us to find the /skills/ directory. Then when found we notice a cookie assigned to a guest user. This cookie is just guest passed into an MD5 hash. So we fuzz that page with common usernames converted to their MD5 hash value. When we look at the responses, we see the response with this cookie `cookie=084e0343a0486ff05530df6c705c8bb4` has a bigger body.
+
+When we rerun that request and check the response, we find `HTB{fuzz1n6_my_f1r57_c00k13}`.
+
 # Web Scanner
 
 ## Burp Scanner
