@@ -94,7 +94,10 @@ content-length: 0
 `
 
 And the response shows `HTB{5c4nn3r5_f1nd_vuln5_w3_m155}`
+
 ## Extensions
+
+This section covers available extensions in both Burp and Zap. I added an extended decoder/encoder in burp and extended fuzzing lists in Zap.
 
 # Skills Assessment
 
