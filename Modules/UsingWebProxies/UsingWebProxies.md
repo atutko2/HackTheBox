@@ -2,7 +2,7 @@
 
 ## Proxy Setup
 
-Both ZAP and Burpe Suite have built in browsers to use for Web Proxies. This automatically routes the web traffic through the tool. Burp: Proxy>Intercept>Open Browser Zap: Click Firefox Browser
+Both ZAP and Burp Suite have built in browsers to use for Web Proxies. This automatically routes the web traffic through the tool. Burp: Proxy>Intercept>Open Browser Zap: Click Firefox Browser
 Needed to install Certs for Burp Suite and Zap so that I can use Proxies. I then had to add them to firefox under preferences>privacy>view Certificates>Authorities>Import
 
 ## Intercepting Web Requests
@@ -23,7 +23,7 @@ This section covers how to use to the proxy repeater. Specifically, you have to 
 
 ## Encoding/Decoding
 
-This section brieflhy covers the decoder tools in Zap and Burp. Burp has a smart decoder tool so it should be easy to use.
+This section briefly covers the decoder tools in Zap and Burp. Burp has a smart decoder tool so it should be easy to use.
 
 ## Proxying Tools
 
@@ -47,7 +47,7 @@ We need to set up positions. If we want to set up a check for a web directory, w
 
 We need to set up the Payloads, which is the wordlist we will be using for this attack. The payloads get iterated over and tested ono by ono in the Payload Position we chose earlier. 
 
-The Payload Set is the type of words we want to use. We can chose a list of words to test or a bunch of other things.
+The Payload Set is the type of words we want to use. We can choose a list of words to test or a bunch of other things.
 
 Payload options is where put our wordlist for a Simple List parameter. You can either pass ina file or add them one by one. We used a list provided for us of common Web-Content directories. `/opt/useful/SecLists/Discovery/Web-Content/common.txt`.
 
