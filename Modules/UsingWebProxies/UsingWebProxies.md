@@ -102,3 +102,37 @@ This section covers available extensions in both Burp and Zap. I added an extend
 # Skills Assessment
 
 ## Skills Assessment - Using Web Proxies
+
+This section is just test of all the skills learned up to this point.
+
+The first test says `The /lucky.php page has a button that appears to be disabled. Try to enable the button, and then click it to get the flag.`
+
+To solve this, you need to intercept the web request and delete the disable field. This reveals the answer to be `HTB{d154bl3d_bu770n5_w0n7_570p_m3}`
+
+The next test says `The /admin.php page uses a cookie that has been encoded multiple times. Try to decode the cookie until you get a value with 31-characters. Submit the value as the answer.`
+
+To solve this, you need to intercept the web request after opening the admin.php page. Then take the cookie and pass it through a decoder twice. What you find is this cookie is ASCII encoded, then base64 encoded. The solution is `3dac93b8cd250aa8c1a36fffc79a17a`
+
+The next test is `Once you decode the cookie, you will notice that it is only 31 characters long, which appears to be an md5 hash missing its last character. So, try to fuzz the last character of the decoded md5 cookie with all alpha-numeric characters, while encoding each request with the encoding methods you identified above. (You may use the "alphanum-case.txt" wordlist from Seclist for the payload)`
+
+To solve this, you need to pass the previous web requested into Burp Intruder, then set up an attack where you use the previously found cookie as a prefix string and enumerate the over all letters (Upper and Lower case) and numbers. Then you need to pass that new string through an encoder that first does base 64, then ASCII encoding. Afterwards, you need to identify which of the requests responses is of different length, and check that request for the answer. The answer here was `HTB{burp_1n7rud3r_n1nj4!}`
+
+The final test is `You are using the 'auxiliary/scanner/http/coldfusion_locale_traversal' tool within Metasploit, but it is not working properly for you. You decide to capture the request sent by Metasploit so you can manually verify it and repeat it. Once you capture the request, what is the 'XXXXX' directory being called in '/XXXXX/administrator/..'?`
+
+To solve this, all you have to do is run msfconsole, and run 
+`auxiliary/scanner/http/coldfusion_locale_traversal?
+
+set RHOSTS IP
+
+set RPORT PORT
+
+run`
+
+The result is
+`GET /CFIDE/administrator/index.cfm HTTP/1.1
+Host: IP:PORT
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/118.0
+Connection: close
+`
+
+And the Answer is `CFIDE`
