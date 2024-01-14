@@ -1,0 +1,2 @@
+lert-api-shv-{GOBUSTER}-sin6
+atlas-pp-shv-{GOBUSTER}-sin6

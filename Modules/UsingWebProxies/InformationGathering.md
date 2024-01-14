@@ -113,6 +113,39 @@ The answer to this is running the same command as above but with dev.inlanefreig
 
 ## Active Subdomain Enumeration
 
+The zone transfer is how a secondary DNS recieves info from the primary. The master-slave approach is used to organize DNS servers withing a domain. The slave receives the updated DNS info from the master. The master should be configured to enable zone transfers from the secondary.
+
+We can use `https://hackertarget.com/zone-transfer/` to get this information.
+
+We can do `nslookup -type=NS [website]` to identify the nameserver.
+
+Then run `nslookup -type=any -query=AXFR [website] [nameserver]` to get the same information
+
+GoBuster is a tool we can use for subdomain enumeration. We can use a wordlist along with gobuster if we are looking for words in patterns instead of numbers. In the past we found a pattern that looked like `lert-api-shv-{NUMBER}-sin6.facebook.com`. We can use this pattern to find additional subdomains.
+
+The tests for this section are:
+
+Submit the FQDN of the nameserver for the "inlanefreight.htb" domain as the answer.
+The answer here was to run `nslookup -type=NS inlanefreight.htb [IP]`. Then the result was ns.inlanefreight.htb
+
+Identify how many zones exist on the target nameserver. Submit the number of found zones as the answer. 
+The answer here was to run `dig ANY inlanefreight.htb @[IP]`, then the count the result.
+
+Find and submit the contents of the TXT record as the answer.
+This one was confusing, you had to dig for axfr records the two returned zones, then iterate over the a records for txt files. It was hard to follow and I am still confused.
+
+What is the FQDN of the IP address 10.10.34.136? 
+Once again running the dig command on the two given zones, you can find the FQDN associated with the IP address.
+
+What FQDN is assigned to the IP address 10.10.1.5? Submit the FQDN as the answer. 
+Same process
+
+ Which IP address is assigned to the "us.inlanefreight.htb" subdomain. Submit the IP address as the answer. 
+Same process as above but reversed
+
+Submit the number of all "A" records from all zones as the answer. 
+Run `dig @10.129.249.31 NS axfr inlanefreight.htb` and `dig @10.129.249.31 NS axfr internal.inlanefreight.htb` and count the records. The total was 27. 
+
 ## Virtual Hosts
 
 ## Crawling
