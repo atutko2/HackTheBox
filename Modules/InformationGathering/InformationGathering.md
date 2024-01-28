@@ -148,6 +148,51 @@ Run `dig @10.129.249.31 NS axfr inlanefreight.htb` and `dig @10.129.249.31 NS ax
 
 ## Virtual Hosts
 
+A virtual host allows a single webserver to host multiple web pages. This can be done by IP-based Virtual Hosting or Name-based Virtual hosting.
+
+IP-Based can have multiple network interfaces. Then multiple IP addresses, or interface aliaseses, can be configured on each network interface of a host. The servers or virtual servers running on the host can bind to one or more IP addresses. That makes it so different servers can be addressed under different IP addresses. From the clients POV, the servers are independent.
+
+In name-based, the distinction for which domain was requested is made at the application level. For example, multiple names can correspond to the same IP (e.g example.inlanefreight.htb, and example2.inlanefreight.htb can both have the same IP). On the server, these are seperating using folders, so it might look like example1 corresponds to /var/www/admin on the server, and example2 corresponds to /var/www/backup.
+
+Using FFUF we can automate VHost discover. FFUF is a fuzzing tool. Some useful parameters:
+`MATCHER OPTIONS:
+  -mc                 Match HTTP status codes, or "all" for everything. (default: 200,204,301,302,307,401,403,405)
+  -ml                 Match amount of lines in response
+  -mr                 Match regexp
+  -ms                 Match HTTP response size
+  -mw                 Match amount of words in response
+
+FILTER OPTIONS:
+  -fc                 Filter HTTP status codes from response. Comma separated list of codes and ranges
+  -fl                 Filter by amount of lines in response. Comma separated list of line counts and ranges
+  -fr                 Filter regexp
+  -fs                 Filter HTTP response size. Comma separated list of sizes and ranges
+  -fw                 Filter by amount of words in response. Comma separated list of word counts and ranges`
+
+We can match or filter responses based on different options. The web server responds with a default and static website every time we issue an invalid virtual host in the HOST header. We can use the filter by size -fs option to discard the default response as it will always have the same size.
+
+An example of running ffuf `ffuf -w ./vhosts -u http://192.168.10.10 -H "HOST: FUZZ.randomtarget.com" -fs 612`
+
+Where -w is the wordlist to fuzz on, -u is the ip, -H is the host with FUZZ being the word relaced, and  -fs being a filter to remove pages that are size 612.
+
+Tests on this section:
+Enumerate the target and find a vHost that contains flag No. 1. Submit the flag value as your answer (in the format HTB{DATA}). 
+
+Running this gets back a list of vhosts:
+`ffuf -w ../SecLists/Discovery/DNS/namelist.txt -u http://10.129.41.55 -H "HOST: FUZZ.inlanefreight.htb" -fs 10918`
+
+They are: customers, app, ap, citrix, dmz, and www.
+Add these to /etc/hosts
+
+Then the answer to the first test is to run:
+`curl -s http://10.129.41.55 -H "Host: ap.inlanefreight.htb"`
+
+The subsequent tests in order are solved by running:
+`curl -s http://10.129.41.55 -H "Host: app.inlanefreight.htb"`
+`curl -s http://10.129.41.55 -H "Host: citrix.inlanefreight.htb"`
+`curl -s http://10.129.41.55 -H "Host: customers.inlanefreight.htb"`
+`curl -s http://10.129.41.55 -H "Host: dmz.inlanefreight.htb"`
+
 ## Crawling
 
 # Putting it all Together
