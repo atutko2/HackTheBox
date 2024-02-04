@@ -195,6 +195,38 @@ The subsequent tests in order are solved by running:
 
 ## Crawling
 
+This page covers crawling of a website using Zap's spider functionality. We use the crawling process to find as many pages and subdirectories belonging to a website as possible. It also briefly covers the manual request editor and built in fuzzer. I have already worked heavily with this tool in the previous module.
+
+It also covers how to use ffuf to perform a further crawl to see if spider missed anything.
+This is the example code given `ffuf -recursion -recursion-depth 1 -u http://192.168.10.10/FUZZ -w /opt/useful/SecLists/Discovery/Web-Content/raft-small-directories-lowercase.txt`
+
+
 # Putting it all Together
 
 ## Information Gathering - Web - Skills Assessment
+
+This skill assessment has us perform a passsive and active information gathering against githubapp.com. We are expected to exclude 
+`- atom-io.githubapp.com
+- atom-io-staging.githubapp.com
+- email.enterprise-staging.githubapp.com
+- email.haystack.githubapp.com
+- reply.githubapp.com`
+
+The first question is what is the IANA ID number. Simply running whois githubapp.com gives the answer.
+
+The next question is:
+What is the last mail`server returned when querying the MX records for githubapp.com? 
+Running `dig MX githubapp.com` gets the answer
+
+Next question:
+Perform active infrastructure identification against the host https://i.imgur.com. What server name is returned for the host? 
+
+Running `./whatweb -a3 https://i.imgur.com` returns a lot of things including `HTTPServer[cat factory 1.0]`
+The answer is cat factory 1.0
+
+Next question:
+Perform subdomain enumeration against the target githubapp.com. Which subdomain has the word 'triage' in the name?
+
+Using cert.sh (pronounced search) you can find all registered certs and find the answer is:
+`data-triage-reports.githubapp.com`
+
