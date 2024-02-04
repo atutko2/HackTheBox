@@ -1,0 +1,2 @@
+Running openvpn
+sudo openvpn --config [pathTofile].ovpn

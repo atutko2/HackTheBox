@@ -14,6 +14,23 @@ This can be found at `SecLists/Discovery/Web-Content/directory-list-2.3-small.tx
 
 # Basic Fuzzing
 
+This goes over a quick fuzzing example to find directories. It covers some of the parameters you can use with ffuf. The big ones are:
+-w is the wordlist
+-u is the url 
+
+But there are ways to do filtering. 
+-fc filters on response code
+-fs filters on response size (i.e. if you know its not a specific size remove it)
+
+There are also matcher options and output options
+
+Use ffuf -h to find all options
+
+We also run a fuzz on the provided instance. There is a question in this section:
+
+In addition to the directory we found above, there is another directory that can be found. What is it? 
+Running `ffuf -w ../../SecLists/Discovery/Web-Content/directory-list-2.3-small.txt:FUZZ -u http://83.136.252.214:52071/FUZZ` returns 2 directories. The answer to this was forum.
+
 ## Directory Fuzzing
 
 ## Page Fuzzing
