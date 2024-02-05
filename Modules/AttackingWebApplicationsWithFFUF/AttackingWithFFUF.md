@@ -14,6 +14,8 @@ This can be found at `SecLists/Discovery/Web-Content/directory-list-2.3-small.tx
 
 # Basic Fuzzing
 
+## Page Fuzzing
+
 This goes over a quick fuzzing example to find directories. It covers some of the parameters you can use with ffuf. The big ones are:
 -w is the wordlist
 -u is the url 
@@ -33,9 +35,23 @@ Running `ffuf -w ../../SecLists/Discovery/Web-Content/directory-list-2.3-small.t
 
 ## Directory Fuzzing
 
-## Page Fuzzing
+In the previous section we found a blog directory, but it was blank. In this section we fuzz to find if there are any actual pages in this directory. The first thing we need to do is determine which file extension the server is using. We could try and guess based on the type of server (e.g Apache maybe .php, IIS might be .asp or .aspx, etc). However, this is clunky. 
+
+We can actually try and fuzz the answer here by looking for a index.(extension) file. If we run `ffuf -w SecLists/Discovery/Web-Content/web-extensions.txt:FUZZ -u http://IP:port/blog/indexFUZZ` we find that the index page has a .php extension.
+
+Now that we know the extension we can start fuzzing for other pages using the same list we used in the previous section.
+`ffuf -w SecLists/Discovery/Web-Content/directory-list-2.3-small.txt:FUZZ -u http://IP:Port/blog/FUZZ.php`
+
+This returns two pages, one is just the index page again, which is empty, but the other is the home page.
+Running `curl http://IP:port/blog/home.php` finds the flag.
 
 ## Recursive Fuzzing
+
+This section covers that we can recursively run the commands we have already run to find all of the subdomains. By adding the -recursion flag to ffuf and the -recursion-depth flag to set how far to check we can check if there is any more that we missed. We can also add the -e flag to define the extension we are looking for, this will double the size of our search list because it will check the word, then check again with the extension. Finally we use -v to get the full url of the found page. And I also added -ic to remove the copyright info from our wordlist.
+
+Running `ffuf -w ../SecLists/Discovery/Web-Content/directory-list-2.3-small.txt:FUZZ -u http://94.237.53.58:55018/FUZZ -recursion -recursion-depth 1 -e .php -v -ic` we find a page under /forum/flag.php.
+
+Running curl on the URL gets the flag.
 
 # Domain Fuzzing
 
