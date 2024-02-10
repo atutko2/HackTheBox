@@ -138,7 +138,7 @@ Then we need to see if we can find any active parameters on those pages, and fin
 
 The questsions are:
 
-`Run a sub-domain/vhost fuzzing scan on '*.academy.htb' for the IP shown above. What are all the sub-domains you can identify? (Only write the sub-domain name)` 
+### Run a sub-domain/vhost fuzzing scan on '*.academy.htb' for the IP shown above. What are all the sub-domains you can identify? (Only write the sub-domain name) 
 
 After adding the IP and academy.htb to /etc/hosts:
 Running `ffuf -w ../SecLists/Discovery/DNS/subdomains-top1million-5000.txt:FUZZ -u http://academy.htb:31637/ -H 'Host: FUZZ.academy.htb' -fs 985` returns the answer.
@@ -146,7 +146,7 @@ Running `ffuf -w ../SecLists/Discovery/DNS/subdomains-top1million-5000.txt:FUZZ 
 The answer was archive test faculty. The reason we only look for vhosts here is because this is not a public box. So there will not be any public subdomains to find.
 
 
-`Before you run your page fuzzing scan, you should first run an extension fuzzing scan. What are the different extensions accepted by the domains?` 
+### Before you run your page fuzzing scan, you should first run an extension fuzzing scan. What are the different extensions accepted by the domains?
 
 After adding the above vhosts to the /etc/hosts file. We can run:
 `ffuf -w ../SecLists/Discovery/Web-Content/web-extensions.txt:FUZZ -u http://faculty.academy.htb:31637/indexFUZZ`
@@ -155,13 +155,13 @@ And run it on the other two vhosts as well.
 The answer to this question is: .php .php7 .phps
 
 
-`One of the pages you will identify should say 'You don't have access!'. What is the full page URL? `
+### One of the pages you will identify should say 'You don't have access!'. What is the full page URL?
 
 
 
-`In the page from the previous question, you should be able to find multiple parameters that are accepted by the page. What are they?` 
+### In the page from the previous question, you should be able to find multiple parameters that are accepted by the page. What are they? 
 
 
-`Try fuzzing the parameters you identified for working values. One of them should return a flag. What is the content of the flag? `
+### Try fuzzing the parameters you identified for working values. One of them should return a flag. What is the content of the flag?
 
 
