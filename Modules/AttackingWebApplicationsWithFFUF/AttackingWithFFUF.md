@@ -143,7 +143,7 @@ The questsions are:
 After adding the IP and academy.htb to /etc/hosts:
 Running `ffuf -w ../SecLists/Discovery/DNS/subdomains-top1million-5000.txt:FUZZ -u http://academy.htb:31637/ -H 'Host: FUZZ.academy.htb' -fs 985` returns the answer.
 
-The answer was archive test faculty. The reason we only look for vhosts here is because this is not a public box. So there will not be any public subdomains to find.
+The answer was 'archive test faculty'. The reason we only look for vhosts here is because this is not a public box. So there will not be any public subdomains to find.
 
 
 ### Before you run your page fuzzing scan, you should first run an extension fuzzing scan. What are the different extensions accepted by the domains?
@@ -152,16 +152,33 @@ After adding the above vhosts to the /etc/hosts file. We can run:
 `ffuf -w ../SecLists/Discovery/Web-Content/web-extensions.txt:FUZZ -u http://faculty.academy.htb:31637/indexFUZZ`
 And run it on the other two vhosts as well.
 
-The answer to this question is: .php .php7 .phps
+The answer to this question is: '.php .php7 .phps'
 
 
 ### One of the pages you will identify should say 'You don't have access!'. What is the full page URL?
 
+Running this command on all of the sites identifies the page:
+`ffuf -w ../SecLists/Discovery/Web-Content/directory-list-2.3-small.txt:FUZZ -u http://VHOST.academy.htb:PORT/courses/FUZZ -recursion -recursion-depth 1 -e php,phps,.php7 -v -ic -fs 287`
 
+The answer is http://faculty.academy.htb:PORT/courses/linux-security.php7.
 
 ### In the page from the previous question, you should be able to find multiple parameters that are accepted by the page. What are they? 
 
+Running `ffuf -w ../SecLists/Discovery/Web-Content/burp-parameter-names.txt:FUZZ -u 'http://faculty.academy.htb:PORT/courses/linux-security.php7?FUZZ=key' -fs 774` returns user as a valid parameter
+
+And running `ffuf -w ../SecLists/Discovery/Web-Content/burp-parameter-names.txt:FUZZ -u 'http://faculty.academy.htb:31637/courses/linux-security.php7' -d 'FUZZ=key' -H 'Content-Type: application/x-www-form-urlencoded' -X POST -fs 774` returns user and username
+
+The answer to this is 'user username'
 
 ### Try fuzzing the parameters you identified for working values. One of them should return a flag. What is the content of the flag?
+
+We can now do a POST fuzz on username parameter to find the flag. If we run:
+` ffuf -w ../SecLists/Usernames/xato-net-10-million-usernames.txt:FUZZ -u 'http://faculty.academy.htb:PORT/courses/linux-security.php7' -d 'username=FUZZ' -H 'Content-Type: application/x-www-form-urlencoded' -X POST -fs 781`
+
+We get these usernames: harry, Harry, HARRY.
+
+Running: `curl 'http://faculty.academy.htb:PORT/courses/linux-security.php7' -X POST -d "username=harry" -H 'Content-Type: application/x-www-form-urlencoded'` gets the answer.
+
+The answer to this: 'HTB{w3b_fuzz1n6_m4573r}'
 
 
