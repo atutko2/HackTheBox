@@ -57,20 +57,111 @@ Running curl on the URL gets the flag.
 
 ## DNS Records
 
+This section just covers what DNS is. It also notes that if you add a host to the /etc/hosts file you can connect to an ip on the web using that name. Finally it gives a useful command to add hosts to that file.
+`sudo sh -c 'echo "SERVER_IP  academy.htb" >> /etc/hosts'`
+
 ## Sub-domain Fuzzing
+
+This section covers finding potential subdomains by using a list of common subdomain names from SecLists.
+The test here is:
+Try running a sub-domain fuzzing test on 'inlanefreight.com' to find a customer sub-domain portal. What is the full domain of it?
+
+Running `ffuf -w ../SecLists/Discovery/DNS/subdomains-top1million-5000.txt:FUZZ -u https://FUZZ.inlanefreight.com -v` get the answer.
+
+But you can also just gather the name of the domain is customer.inlanefreight.com by the question.
 
 ## Vhost Fuzzing
 
+This is a little more in depth a task because VHosts may or may not have a public DNS record. And VHosts could be hosted on the same IP. In order to fuzz for a VHost, we can use the -H flag on ffuf. Like this:
+`ffuf -w /opt/useful/SecLists/Discovery/DNS/subdomains-top1million-5000.txt:FUZZ -u http://academy.htb:PORT/ -H 'Host: FUZZ.academy.htb'`
+
+If we run this we will see that all of the response codes are 200, because we already know the IP exists. However, if the VHost actually exists, it will have a different response size.
+
 ## Filtering Results
+
+Since all of the responses in the previous run will be size 900, we need to filter those out to find other potential vhosts.
+
+If we run `ffuf -w /opt/useful/SecLists/Discovery/DNS/subdomains-top1million-5000.txt:FUZZ -u http://academy.htb:PORT/ -H 'Host: FUZZ.academy.htb' -fs 986` it will return the Vhosts that exist.
+
+Running that command returns test as the other vhost.
 
 # Parameter Fuzzing
 
 ## Parameter Fuzzing - GET
 
+If we run a recursive enumeration of admin.academy.htb, we find there is a http://admin.academy.htb:PORT/admin/admin.php page. However, we cannot just access this page, it says we don't have access. So we choose to fuze Get Parameters on this URL to perhaps find if we can get access. For this we use `SecLists/Discovery/Web-Content/burp-parameter-names.txt`
+
+Get parameters usually take this form `http://admin.academy.htb:PORT/admin/admin.php?param1=key` so we fuzz on param1
+
+Once again we want to filter our results on response size. 
+
+We do a get a response but all it says is the method is deprecated.
+
+The question for this section is: Using what you learned in this section, run a parameter fuzzing scan on this page. what is the parameter accepted by this webpage? 
+
+Running `ffuf -w ../SecLists/Discovery/Web-Content/burp-parameter-names.txt:FUZZ -u 'http://admin.academy.htb:49949/admin/admin.php?FUZZ=key' -fs 798`
+
+Returns that user is the answer.
+
 ## Parameter Fuzzing - POST
+
+For Post fuzzing we cannot just append ? to the URL to begin fuzzing. POST requests are passed in the data field. To do this with FFUF we can use -d parameter. Further more for PHP, it only accepts a specific context type. We can use `-H 'Content-Type: application/x-www-form-urlencoded` for PHP. Finally we want to add the -X field to define it is a POST.
+
+So if we refuzz what we did in the previous section:
+`ffuf -w ../SecLists/Discovery/Web-Content/burp-parameter-names.txt:FUZZ -u 'http://admin.academy.htb:49949/admin/admin.php' -d 'FUZZ=key' -H 'Content-Type: application/x-www-form-urlencoded` -X POST -fs 798`
+
+We find the user result again, but also we see id.
+
+IF we try to run get call using id=key it says invalid id. Next we will try fuzzing this ID.
 
 ## Value Fuzzing
 
+Since we discovered that the parameter is ID, we can guess this value is a integer of some kind. But this won't always be the case. Sometimes there will be wordlists for fuzzing these params, and sometimes we will have to create our own. In this case, we create a word list of the numbers from 1 - 1000 using:
+`for i in $(seq 1 1000); do echo $i >> ids.txt; done`
+
+If we then run the fuzz we did before on POST params, with that wordlist:
+`ffuf -w ids.txt:FUZZ -u 'http://admin.academy.htb:49949/admin/admin.php' -d 'id=FUZZ' -X POST -H 'Content-Type: application/x-www-form-urlencoded' -fs 768`
+
+We quickly find that 73 is a valid ID.
+
+Then we can make a CURL Post request with that value to get the key:
+`curl -X POST http://admin.academy.htb/admin/admin.php -d 'id=73'`
+
+The answer is HTB{p4r4m373r_fuzz1n6_15_k3y!}
 # Skills Assessment
 
 ## Skills Assessment - Web Fuzzing
+
+In the skill assessment for this module we are given an IP address and no more information. We are expected to locate all pages and domains linked to that IP. 
+
+Then we need to see if we can find any active parameters on those pages, and finally retrieve data from the page.
+
+The questsions are:
+
+`Run a sub-domain/vhost fuzzing scan on '*.academy.htb' for the IP shown above. What are all the sub-domains you can identify? (Only write the sub-domain name)` 
+
+After adding the IP and academy.htb to /etc/hosts:
+Running `ffuf -w ../SecLists/Discovery/DNS/subdomains-top1million-5000.txt:FUZZ -u http://academy.htb:31637/ -H 'Host: FUZZ.academy.htb' -fs 985` returns the answer.
+
+The answer was archive test faculty. The reason we only look for vhosts here is because this is not a public box. So there will not be any public subdomains to find.
+
+
+`Before you run your page fuzzing scan, you should first run an extension fuzzing scan. What are the different extensions accepted by the domains?` 
+
+After adding the above vhosts to the /etc/hosts file. We can run:
+`ffuf -w ../SecLists/Discovery/Web-Content/web-extensions.txt:FUZZ -u http://faculty.academy.htb:31637/indexFUZZ`
+And run it on the other two vhosts as well.
+
+The answer to this question is: .php .php7 .phps
+
+
+`One of the pages you will identify should say 'You don't have access!'. What is the full page URL? `
+
+
+
+`In the page from the previous question, you should be able to find multiple parameters that are accepted by the page. What are they?` 
+
+
+`Try fuzzing the parameters you identified for working values. One of them should return a flag. What is the content of the flag? `
+
+

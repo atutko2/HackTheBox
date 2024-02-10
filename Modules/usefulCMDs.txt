@@ -1,2 +1,5 @@
 Running openvpn
 sudo openvpn --config [pathTofile].ovpn
+
+Add server to /etc/hosts
+sudo sh -c 'echo "SERVER_IP  academy.htb" >> /etc/hosts'
