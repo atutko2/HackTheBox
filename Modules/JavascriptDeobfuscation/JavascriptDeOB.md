@@ -100,4 +100,36 @@ Sending a curl post request with that using `curl -s -X POST http://94.237.56.18
 
 ## Skills Assessment
 
+The questions in this section are:
+
+### Try to study the HTML code of the webpage, and identify used JavaScript code within it. What is the name of the JavaScript file being used? 
+
+Looking at the source code its quickly seen that the script file is named 'api.min.js'. From what we learned from before we can quickly guess this file has been minified.
+
+### Once you find the JavaScript code, try to run it to see if it does any interesting functions. Did you get something in return? 
+
+Running the code in that file we see this `HTB{j4v45cr1p7_3num3r4710n_15_k3y}`
+
+### As you may have noticed, the JavaScript code is obfuscated. Try applying the skills you learned in this module to deobfuscate the code, and retrieve the 'flag' variable. 
+
+Based on the (p,a,c,k,e,d) we can tell this has been run through a packer. Running through a depacker we find: `HTB{n3v3r_run_0bfu5c473d_c0d3!}`
+
+### Try to Analyze the deobfuscated JavaScript code, and understand its main functionality. Once you do, try to replicate what it's doing to get a secret key. What is the key? 
+
+Analyzing the script we see another http POST request to /keys.php. Running a curl post request to that address gets: 4150495f70336e5f37333537316e365f31355f66756e
+
+The answer to this question is '4150495f70336e5f37333537316e365f31355f66756e'. However analyzing that encoding we can go further.
+
+Looking at this encoding I see numbers from 0-9 and letters a-f so this is likely a hex encoding. Running `echo 4150495f70336e5f37333537316e365f31355f66756e | xxd -p -r`
+
+The answer is `API_p3n_73571n6_15_fun`
+
+### Once you have the secret key, try to decide it's encoding method, and decode it. Then send a 'POST' request to the same previous page with the decoded key as "key=DECODED_KEY". What is the flag you got?
+
+Since we already decoded this above. We can now run `curl http://83.136.251.235:35263/keys.php -X POST -d 'key=API_p3n_73571n6_15_fun'` and get the answer.
+
+The answer is HTB{r34dy_70_h4ck_my_w4y_1n_2_HTB}
+
 ## Summary
+
+This section just covers what we covered in the module.
