@@ -52,9 +52,49 @@ The answer is `HTB{1_4m_7h3_53r14l_g3n3r470r!}` which was gotten by taking the c
 
 ## Code Analysis
 
+If we analyze the unpacked code from above we see that the code is making a web request to /serial.php. It is making a POST request to a function called generateSerial. But it isn't using a return value or anything, and there is no button to use this on the web page. This may indicate unfinished or forgotten functionality. This often has errors or vulnerabilities.
+
 ## HTTP Requests
 
+This section covers how to use curl to make web requests like the one mentioned in the above section. 
+
+If we want to use curl to make a POST request all we have to do is add the -X POST flag.
+POST requests usually have data to send too, so we add the -d flag and add the data.
+`curl -s http://SERVER_IP:PORT/ -X POST -d "param1=sample"`
+
+There are ways to do GET requests with curl too.
+
+The question of this section is:
+### Try applying what you learned in this section by sending a 'POST' request to '/serial.php'. What is the response you get? 
+
+Running `curl -s -X POST http://94.237.56.188:37837/serial.php` gets the answer which is N2gxNV8xNV9hX3MzY3IzN19tMzU1NGcz
+
 ## Decoding
+
+Another aspect of obfuscation is encodings. Often times return values might be encoded to make for harder reading. There are many types of encodings such as base64, hex, rot13, etc.
+
+To identify base64 encoding is pretty easy. The result of base64 encoding will always be alphanumeric in nature, and has to be a multiple of 4. If the result of the encoding is not a multiple of 4, then encoder = as padding.
+
+You can encode into base64 in linux very easily by running `echo [ThingToEncode] | base64`
+
+Similarly decoding is just as easy by running `echo [ThingToEncode] | base64 -d`
+
+Spotting Hex encoding is just as easy because the resulting encoding has to be with a 16 character set. Hex is coded with 0-9 and a-f. So if the encoding only has those characters chances are its hex.
+
+To encode into hex we can use xxd -p like `echo [ThingToEncode] | xxd -p`
+
+To decode we can use xxd -p -r like `echo [ThingToEncode] | xxd -p -r`
+
+Finally rot13 is just a form of Caesar encoding in which each letter is shifted by some fixed number. It covers how to use tr to create rot13 encoder and decoder here, but I don't think it was worth putting it down.
+
+It does also mention that there is a tool called Cipher Indentifier here `https://www.boxentriq.com/code-breaking/cipher-identifier` that usually correctly identifies the form of encoding. Then decoding should be easier. However, this is not fool proof and some people use encryption to perform their encoding which code make it nearly impossible to decode.
+
+The question in this section is:
+### Using what you learned in this section, determine the type of encoding used in the string you got at previous exercise, and decode it. To get the flag, you can send a 'POST' request to 'serial.php', and set the data as "serial=YOUR_DECODED_OUTPUT". 
+
+Analyzing the return value from the previous section I only see alphanumeric results, so it appears to be base64. Running it through a decoder I get: '7h15_15_a_s3cr37_m3554g3'
+
+Sending a curl post request with that using `curl -s -X POST http://94.237.56.188:37837/serial.php -d 'serial=7h15_15_a_s3cr37_m3554g3'` gets the answer 'HTB{ju57_4n07h3r_r4nd0m_53r14l}'
 
 # Skills Assessment
 
