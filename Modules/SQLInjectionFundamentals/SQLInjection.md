@@ -151,9 +151,34 @@ To solve this we can run `select * from employees where first_name LIKE 'Bar%' O
 
 ## SQL Operators
 
+This section just covers common operators (i.e. AND, OR, NOT)
+
+I know all this information already and don't feel like re-documenting it.
+
+The question in this section was:
+In the 'titles' table, what is the number of records WHERE the employee number is greater than 10000 OR their title does NOT contain 'engineer'? 
+
+To get this we can run:
+`SELECT * FROM titles where emp_no > 10000 OR title NOT LIKE '%Engineer%';`
+
+The answer was 654
+
 # SQL Injections
 
 ## Intro to SQL Injections
+
+There are many types of SQL Injections. Examples include In-Band (which is split into union based and error based), Blind (split into Boolean Based and Time Based), and Out of band.
+
+A SQL injection is when a web application that use SQL in the backend takes input from a user that breaks the expected query in a way that allows the user to perform a different malicious command on the database.
+
+in general this can be avoided by sanatizing input and never trusing user input as is.
+
+An example of a vulnerable command would be:
+`$searchInput =  $_POST['findUser'];
+$query = "select * from logins where username like '%$searchInput'";
+$result = $conn->query($query)`
+
+In it you can see that the user's input is used directly and not sanatized at all. Alongside this, usually commands like these should be parameterized.
 
 ## Subverting Query Logic
 
