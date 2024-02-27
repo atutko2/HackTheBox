@@ -182,11 +182,63 @@ In it you can see that the user's input is used directly and not sanatized at al
 
 ## Subverting Query Logic
 
+This section covers subverting a query by using the OR operator to have a return value always be true.
+
+The example given is the classic SQL injection example `' or '1' = '1`
+
+The example test on this page is a bit silly, we are given a page in which it literally tells us the query being run and exactly how. So subverting it is very easy.
+
+The question on this section is:
+Try to log in as the user 'tom'. What is the flag value shown after you successfully log in? 
+
+To do this, we want to enter `tom' or '1' = '1` in the username field and submit. This allows us to log in because the resulting query is true and the tom as a login exists. If it did not it would fail.
+
 ## Using Comments
+
+This sections using comments in SQL and how it can be used to subvert sql queries.
+
+There are 3 types of comments in MySQL with --, #, and /**/. But only the first two are usually used in sql injections.
+
+From the previous section we can achieve logging into the page as admin with just `admin'--`
+
+It mentions in this sections its possible to force an evaluation to happen first with parantheses. And this can make it harder to just use the comment to login.
+
+This is still relatively easy to subvert by simply adding a closing brace before your comment.
+
+The question for this section is: 
+ Login as the user with the id 5 to get the flag. 
+
+To do this we can enter `') OR id=5 -- ` into the username field. the ') closes the original username check, then we can get the id we want using OR then end it with -- with a space at the end to kill the rest of the query.
 
 ## Union Clause
 
+This section covers using a UNION clause to dump whole other tables after a sql query. An example SQL Query using union that gets all the data out of two tables would be `SELECT * FROM ports UNION SELECT * FROM ships;`
+
+But the above query won't always work. A UNION requires both tables to have the same number of columns. So if either of the tables does not this query fails.
+
+To avoid this we can intentionally add false columns to our query to match the same number. The best way to do this is by looking for a NULL column for as many times as we need to match.
+
+The question on this section was:
+Connect to the above MySQL server with the 'mysql' tool, and find the number of records returned when doing a 'Union' of all records in the 'employees' table and all records in the 'departments' table. 
+
+To solve this I ran `mysql -h 83.136.249.57 -P 32347 -u root -p` to connect to the instance.
+
+Then I ran Select * on both tables and counted the columns. The first had 6 and the second had 2.
+
+So to get the answer I ran `select * from employees UNION select dept_no, dept_name, NULL, NULL, NULL, NULL from departments;`
+
 ## Union Injection
+
+This section covers union injection. The first thing it covers is how to determine how many columns we have and how to make sure the output that we want is displayed to the screen. 
+
+There are two ways to do this, we can use the ORDER BY command on each column and when it fails to work we know its one less then the number we tried.
+
+Or we can use the union and just guess the numbers like `cn' UNION select 1,2,3-- -` as we increase this number we will eventually find the failure. An added benefit of this method is it tells us which columns are actually displayed.
+
+The question on this section is:
+ Use a Union injection to get the result of 'user()'
+
+The answer is to run `cn' UNION select 1,user(),3,4-- -`
 
 # Exploitation
 
