@@ -1,0 +1,13 @@
+POST /action.php HTTP/1.1
+Host: 94.237.54.75:53832
+Content-Length: 8
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.57 Safari/537.36
+Content-Type: application/json
+Accept: */*
+Origin: http://94.237.54.75:53832
+Referer: http://94.237.54.75:53832/shop.html
+Accept-Encoding: gzip, deflate, br
+Accept-Language: en-US,en;q=0.9
+Connection: close
+
+{"id":1}

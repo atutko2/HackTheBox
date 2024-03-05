@@ -325,3 +325,9 @@ Running `sqlmap -u "http://83.136.253.251:52859/?id=1" --os-shell --technique=E`
 # Skills Assessment
 
 ## Skills Assessment
+
+All this says is:
+What's the contents of table final_flag?
+
+To get this, I first just ran SQLMap with --level=5 and --risk=3 and mapped the site. This didn't find anything, so I played with the site a little in BURP and found a request submitting an ID. So I put that in a file and ran it again with same risk. After a while it found a time based vuln, but then failed. So I tried re-running target the table and database. That didn't work. So I added the tamper script we used before and this worked. Got the answer with:
+`sqlmap -r FinalCase.txt --dump --batch -p id -D production -T final_flag --technique=T --tamper=between`
