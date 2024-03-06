@@ -10,6 +10,20 @@ There are lots of examples of command injection, SQL Injection, Code Injection, 
 
 ## Detection
 
+To detect command injection, we would do the same thing we would do if we were planning to exploit command injection. We simply attempt to append a command using various injection methods. If the output is something other than normal, then we succesfully exploited the command injection vulnerability. For more advancecd injections we might use Fuzzing to do this. Or use code review. But in general that is the process.
+
+For command injection there are a few characters that help us:
+
+Injection Operator  |	Injection Character |	URL-Encoded Character |	Executed Command                           |
+-----------------   |   ------------------  |   --------------------- | ----------------                           |
+Semicolon 	    |	; 		    |	%3b 		      |	Both                                       |
+New Line 	    |	\n 		    |	%0a 		      |	Both                                       |
+Background 	    |	& 		    |	%26 		      |	Both (second output generally shown first) |
+Pipe 		    |	| 		    |	%7c 		      |	Both (only second output is shown)         |
+AND 		    |	&& 		    |	%26%26 		      |	Both (only if first succeeds)              |
+OR 		    |	|| 		    |	%7c%7c 		      |	Second (only if first fails)               |
+Sub-Shell 	    |	`` 		    |	%60%60 		      |	Both (Linux-only)                          |
+Sub-Shell 	    |	$() 		    |	%24%28%29 	      |	Both (Linux-only)                          |
 
 
 ## Injecting Commands
