@@ -227,3 +227,19 @@ Finally, we should make sure our server is configured correctly to minimize impa
 # Skills Assessment
 
 ## Skills Assessment
+
+I found this skills assessment to be very difficult. The hardest part was definitly finding where the exploit was. The first thing I did was go to the website and test all the buttons and look at the requests.
+
+When looking at the requests, you quickly find a POST request with AJAX in it. But this is a read herring and not what we want. Then, after pressing some buttons we find a page that uses the mv command in linux.
+
+I assumed this is where the exploit was, but I ran into a wall figuring out how to exploit it. Then, after a while I looked at the passed in paramters in Get request and noticed there was a from and a to parameter.
+
+The way mv works is like `mv [From] [To]`, so we can assume the to parameter is the end of the passed in command. Which means this is likely the place the injection works. However, I still was having issues getting the command to work. Everytime I ran it I got an error. But this actually was the trick, as we want this error to happen. We can utilize the || command to get this call another command. But it needs to be encoded like %7c%7c.
+
+Then we can use the base64 encoding like we did in the previous section to find the flag. The easiest way to do this is to encode cat /flag.txt like `echo 'cat /flag.txt' | base64`.
+
+Then we can pass this to the paramter like `%7c%7cbash<<<$(base64%09-d<<<Y2F0IC9mbGFnLnR4dAo=)`
+
+Notice in this that we also had to encode the space character before -d with `%09`. This outputs the answer below the error text.
+
+Overall, an interesting skill assessment, though I spent a fair bit of time on it.
