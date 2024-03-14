@@ -171,7 +171,6 @@ This config file determines which files can run PHP, so it allows .phar, .php, a
 The last thing it covers is character injection. By injecting certain characters its possilble to have the application misinterpret the filename and execute the uploaded file as PHP.
 
 Some of these characters are:
-```
 - %20
 - %0a
 - %00
@@ -181,9 +180,40 @@ Some of these characters are:
 - .
 - …
 - :
+
+For example, shell.php%00.jpg works with PHP servers with version 5.X and earlier. It causes the PHP web server to end the file name after %00, and store it as shell.php.
+
+We can run something like:
+``` BASH
+for char in '%20' '%0a' '%00' '%0d0a' '/' '.\\' '.' '…' ':'; do
+    for ext in '.php' '.phps'; do
+        echo "shell$char$ext.jpg" >> wordlist.txt
+        echo "shell$ext$char.jpg" >> wordlist.txt
+        echo "shell.jpg$char$ext" >> wordlist.txt
+        echo "shell.jpg$ext$char" >> wordlist.txt
+    done
+done
 ```
+To get all permutations of these file extensions with the added characters.
+
+Then we can run that with Zap or Burp and see if they work.
+
+The question in this section is:
+The above exercise employs a blacklist and a whitelist test to block unwanted extensions and only allow image extensions. Try to bypass both to upload a PHP script and execute code to read "/flag.txt"
+
+Okay so this one was difficult to figure out. Mostly because I relied on the scripts they provided working out of the box, that was stupid and not something I should have done.
+
+To solve this one, you need to notice that the reverse double extension allows php, AND phar and phtml. When you look at the script provided above it only outputs things for php. So it isn't going to work. But it's easily modified to work.
+
+Then once you upload the files, you can then check allof the uploaded files and see if they return results when you add ?cmd=ls.
+
+I found a script online to do this easily. Its linked in the repository called repeat.sh.
+
+When this is run we find that tmp:.phtml.jpg works. Then we can just run the usual ls directory traversal until we find the flag.
 
 ## Type Filters
+
+
 
 # Other Upload Attacks
 
