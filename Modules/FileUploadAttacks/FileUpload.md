@@ -362,5 +362,82 @@ Once we perform all of the security measures discussed in this section, the web 
 
 The question in this section is:
 Try to exploit the upload form to read the flag found at the root directory "/". 
+The first thing I did here was look for place to upload images, I found the contact form has one.
 
+I tried to upload .svg, .pdf, .docs, and .pptx. None are allowed in the upload form. So, I tried uploading them by modifying the file content. However, I don't know where the images directory is. So I ran:
+`ffuf -u "http://94.237.62.195:56757/FUZZ" -w ../SecLists/Discovery/Web-Content/directory-list-2.3-medium.txt:FUZZ` to try to find the images directory...
 
+Nothing. Tested uploaded files with all file extensions, but there is no response message, it just moves us to `http://94.237.62.195:56757/contact/submit.php` regardless of file type...
+
+Maybe the profile images are stored under the contact directory?
+
+`ffuf -u "http://94.237.62.195:56757/contact/FUZZ" -w ../SecLists/Discovery/Web-Content/directory-list-2.3-medium.txt:FUZZ -ic` nope doesn't look like it.
+
+Oh found an issue, I wasn't pressing the upload button when selecting the image. Now I am getting output if its allowed...
+
+When I try to upload a valid png I see that contents of the request start with ` PNG`, maybe I can use this?
+
+It also displays the uploaded image on the page, if this is vulnerable to XML files, then I will be able to display content here.
+
+What happens when I try:
+```
+PNG
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg [ <!ENTITY xxe SYSTEM "php://filter/convert.base64-encode/resource=index.php"> ]>
+<svg>&xxe;</svg>
+```
+
+Didn't work... but looking at a valid file. I see that it ends with IHDR. When I remove everything but:
+```
+ PNG
+
+IHDR
+```
+It works. So lets try inserting my message like that.
+
+Uploading worked, but the .png file did not run svg. Not surprised. Lets try again, but try and fuzz file names that are allowed that including .svg
+
+Seems maybe png is not the file type I want. Found a wiki page for .jpg that shows ÿØÿÛ is what I want at the top of the file.
+
+Tried fuzzing for .svg files that work with jpg and found a bunch accepting the input and even displaying the image.
+
+So I was doing this totally wrong. There was no need for me to worry about magic bytes. Or the extension of the file. All I need to do is fuzz for the accepted file types.
+
+image/svg+xml is allowed as a content type. Then all I need to do is upload a jpg, intercept the request, change it to be a svg and add the xxe attack that reveals the upload.php file:
+``` xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg [ <!ENTITY xxe SYSTEM "php://filter/convert.base64-encode/resource=upload.php"> ]>
+<svg>&xxe;</svg>
+```
+
+Then passing the return to base64 -d shows the php file.
+
+This file shows me that user_feedback_submissions is the directory I am looking for.
+
+Then I see this too
+``` php
+// blacklist test
+if (preg_match('/.+\.ph(p|ps|tml)/', $fileName)) {
+    echo "Extension not allowed";
+    die();
+}
+
+// whitelist test
+if (!preg_match('/^.+\.[a-z]{2,3}g$/', $fileName)) {
+    echo "Only images are allowed";
+    die();
+}
+```
+
+The blacklist test doesn't restrict phar. So lets try to upload a file with phar and see if we can access it.
+
+Okay so this confused for me quite a while. I got the file to upload, but it seemed like nothing I did would let me access it in user_feedback_submissions directory. I spent an hour trying new files or inputing the php differently...
+
+Then I read a comment in the forums about the name being prepended... and I looked at the code for upload.php again and I realized the issue. Then it was easy as figuring out the output of:
+``` php
+date('ymd');
+```
+
+Then prepend that to my file and I found it, then I could run my code and get the flag.
+
+Overall, I found this skill assessment very difficult. Which is good.
