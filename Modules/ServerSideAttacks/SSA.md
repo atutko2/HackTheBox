@@ -614,9 +614,15 @@ Gets the answer
 
 ## SSTI Exploitation Example 3
 
+This section once again is solved by running tplmap with the --os-shell function. 
+
+The section covers some interesting stuff for Python, but overall, I didn't feel it worth documenting.
+
 # Extensible Stylesheet Language Transformations Server-Side Injections
 
 ## Attacking XSLT
+
+There was a lot of information in this section but it was mostly academic. I followed along for a little while but not the whole way. This might be something I come back to.
 
 # Skills Assessment
 
