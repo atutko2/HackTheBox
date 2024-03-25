@@ -628,4 +628,33 @@ There was a lot of information in this section but it was mostly academic. I fol
 
 ## Server-Side Attacks
 
+The question in this section is:
+Read the content of 'flag.txt' through a server-side attack without registering an account and submit its content as your answer. Answer format: HTB{String} 
 
+Running nmap on this server `nmap -sT -T5 --min-rate=10000 -p- <TARGET IP>` tells me that only ports 22, 34950, and 37075 are open. This doesn't indicate Tomcat (X).
+
+What about SSRF?
+`curl -i -s http://<TARGET IP>`
+
+^ This did not work. So I went and looked at the other ports that were open to see if there was more information I was missing. There was a page for a tiny file manager, and I was sure this must be where I get access. Tiny file manager has an exploit that allows for remote code execution if we get admin access...
+
+Looking at the docs for tiny file manager, they preconfigure the admin account to be admin/admin@123. This must be it right? Nope...
+
+Theres another port that is open, but it doesn't actually work... 
+
+Running tlpmap on literally every input variable doesn't work. And the question says to get the answer without creating an account. So what do I do?
+
+I pulled up the forums for a hint. And someone mentioned a non-descript script.js file name...
+
+Looking at it I see it's doing simple javascript obfuscation? When deobfusctated I get:
+`http://window.location.host/G3tTh4tF1l34M3?l33t=http://127.0.0.1:8080/message.txt`
+
+When I look up window.location.host, it just returns the IP. So trying:
+`curl "http://94.237.56.188:40867/G3tTh4tF1l34M3?l33t=http://127.0.0.1:8080/message.txt"`
+
+Returns `Are you sure?`
+So trying `curl "http://94.237.56.188:40867/G3tTh4tF1l34M3?l33t=http://127.0.0.1:8080/flag.txt"` and thats the whole answer...
+
+This did not feel like it tested the skills in this section at all... I understand this is an SSRF. But it required finding it based on JS deobfuscation (which is fine), but then the solution was literally just changing the file being returned...
+
+Overall very disappointed in this skill assessment.
