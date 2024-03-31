@@ -137,15 +137,193 @@ The answer to this was literally the same answer as last time...
 
 ## Hydra Modules
 
+On the page we just brute forced, tjere is an admin panel. To cause as little network traffic as possible, it is recommended to try the top 10 most popular administrators' credentials, such as admin:admin.
+
+If these don't work, we can resort to a method called password spraying. This method uses already found, guessed or decrypted passwords across multiple accounts. Since we have been redirected to this panel, that user might have access here as well.
+
+### Brute Forcing Forms
+
+Hydra provides many different types of requests we can use to brute force different services. If we use hydra -h, we should be able to list supported services. 
+
+In this situation there are only two types of http modules interesting for us:
+
+    http[s]-{head|get|post}
+    http[s]-post-form
+
+The 1st module serves for basic HTTP authentication, while the 2nd module is used for login forms, like .php or .aspx and others.
+
+Since the file extension is ".php" we should try the http[s]-post-form module. To decide which module we need, we have to determine whether the web application uses GET or a POST form. We can test it by trying to log in and pay attention to the URL. If we recognize that any of our input was pasted into the URL, the web application uses a GET form. Otherwise, it uses a POST form.
+
+Based on the URL scheme at the beginning, we can determine whether this is an HTTP or HTTPS post-form. If our target URL shows http, in this case, we should use the http-post-form module.
+
+To find out how to use the http-post-form module, we can use the "-U" flag to list the parameters it requires and examples of usage:
+`hydra http-post-form -U`
+
+```
+Examples:
+ "/login.php:user=^USER^&pass=^PASS^:incorrect"
+```
+
+In summary, we need to provide three parameters, separated by :, as follows:
+
+    URL path, which holds the login form
+    POST parameters for username/password
+    A failed/success login string, which lets hydra recognize whether the login attempt was successful or not
+
+
+For the first parameter, we know the URL path is:
+/login.php
+The second parameter is the POST parameters for username/passwords:
+/login.php:[user parameter]=^USER^&[password parameter]=^PASS^
+The third parameter is a failed/successful login attempt string. We cannot log in, so we do not know how the page would look like after a successful login, so we cannot specify a success string to look for.
+/login.php:[user parameter]=^USER^&[password parameter]=^PASS^:[FAIL/SUCCESS]=[success/failed string]
+
+To make it possible for hydra to distinguish between successfully submitted credentials and failed attempts, we have to specify a unique string from the source code of the page we're using to log in. Hydra will examine the HTML code of the response page it gets after each attempt, looking for the string we provided.
+
+We can specify two different types of analysis that act as a Boolean value.
+```
+Type 	Boolean Value 	Flag
+Fail 	FALSE 	F=html_content
+Success 	TRUE 	S=html_content
+```
+
+If we provide a fail string, it will keep looking until the string is not found in the response. Another way is if we provide a success string, it will keep looking until the string is found in the response.
+
+Since we cannot log in to see what response we would get if we hit a success, we can only provide a string that appears on the logged-out page to distinguish between logged-in and logged-out pages.
+So, let's look for a unique string so that if it is missing from the response, we must have hit a successful login. This is usually set to the error message we get upon a failed login, like Invalid Login Details. However, in this case, it is a little bit trickier, as we do not get such an error message. So is it still possible to brute force this login form?
+
+We can take a look at our login page and try to find a string that only shows in the login page, and not afterwards. For example, one distinct string is Admin Panel: 
+
+So, we may be able to use Admin Panel as our fail string. However, this may lead to false-positives because if the Admin Panel also exists in the page after logging in, it will not work, as hydra will not know that it was a successful login attempt.
+
+A better strategy is to pick something from the HTML source of the login page.
+What we have to pick should be very unlikely to be present after logging in, like the login button or the password field. Let's pick the login button, as it is fairly safe to assume that there will be no login button after logging in, while it is possible to find something like please change your password after logging in.
+
+We see it in a couple of places as title/header, and we find our button in the HTML form shown above. We do not have to provide the entire string, so we will use <form name='login', which should be distinct enough and will probably not exist after a successful login.
+
+So, our syntax for the http-post-form should be as follows:
+
+`"/login.php:[user parameter]=^USER^&[password parameter]=^PASS^:F=<form name='login'"`
+
 ## Determine Login Parameters
 
+One of the easiest ways to capture a form's parameters is through using a browser's built in developer tools. For example, we can open firefox within PwnBox, and then bring up the Network Tools with [CTRL + SHIFT + E].
+
+Once we do, we can simply try to login with any credentials (test:test) to run the form, after which the Network Tools would show the sent HTTP requests. Once we have the request, we can simply right-click on one of them, and select Copy > Copy POST data:
+
+This would give us the following POST parameters:
+username=test&password=test
+
+Another option would be to used Copy > Copy as cURL, which would copy the entire cURL command, which we can use in the Terminal to repeat the same HTTP request:
+
+`atutko@htb[/htb]$ curl 'http://178.128.40.63:31554/login.php' -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; rv:68.0) Gecko/20100101 Firefox/68.0' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8' -H 'Accept-Language: en-US,en;q=0.5' --compressed -H 'Content-Type: application/x-www-form-urlencoded' -H 'Origin: http://178.128.40.63:31554' -H 'DNT: 1' -H 'Connection: keep-alive' -H 'Referer: http://178.128.40.63:31554/login.php' -H 'Cookie: PHPSESSID=8iafr4t6c3s2nhkaj63df43v05' -H 'Upgrade-Insecure-Requests: 1' -H 'Sec-GPC: 1' --data-raw 'username=test&password=test'`
+
+As we can see, this command also contains the parameters --data-raw 'username=test&password=test'.
+
+In case we were dealing with a web page that sends many HTTP requests, it may be easier to use Burp Suite in order to go through all sent HTTP requests, and pick the ones we are interested in.
+
 ## Login Form Attacks
+
+Let's try to use the ftp-betterdefaultpasslist.txt list with the default credentials to test if one of the accounts is registered in the web application.
+
+`hydra -C ../SecLists/Passwords/Default-Credentials/ftp-betterdefaultpasslist.txt -M servers.txt http-post-form "/login.php:username=^USER^&password=^PASS^:F=<form name='login'"`
+
+Since the brute force attack failed using default credentials, we can try to brute force the web application form with a specified user. Often usernames such as admin, administrator, wpadmin, root, adm, and similar are used in administration panels and are rarely changed. Knowing this fact allows us to limit the number of possible usernames. The most common username administrators use is admin. In this case, we specify this username for our next attempt to get access to the admin panel.
+
+`hydra -l admin -P ../SecLists/Passwords/Leaked-Databases/rockyou-75.txt -f -M servers.txt http-post-form "/login.php:username=^USER^&password=^PASS^:F=<form name='login'"`
+
+Running this gets us a valid login. Then when we login the flag is displayed on the page.
+
+The question in this section:
+Using what you learned in this section, try attacking the '/login.php' page to identify the password for the 'admin' user. Once you login, you should find a flag. Submit the flag as the answer
+
+Like I said we already got this answer.
 
 # Service Authentication Attacks
 
 ## Personalized Wordlists
 
+To create a personalized wordlist for the user, we will need to collect some information about them. As our example here is a known public figure, we can check out their [Wikipedia page](https://en.wikipedia.org/wiki/Bill_Gates) or do a basic Google search to gather the necessary information. Even if this was not a known figure, we can still carry out the same attack and create a personalized wordlist for them. All we need to do is gather some information about them, which is discussed in detail in the Hashcat module, so feel free to check it out.
+
+Many tools can create a custom password wordlist based on certain information. The tool we will be using is cupp, which is pre-installed in your PwnBox. If we are doing the exercise from our own VM, we can install it with sudo apt install cupp or clone it from the Github repository. Cupp is very easy to use. We run it in interactive mode by specifying the -i argument, and answer the questions, as follows:
+
+And as a result, we get our personalized password wordlist saved as william.txt.
+
+The personalized password wordlist we generated is about 43,000 lines long. Since we saw the password policy when we logged in, we know that the password must meet the following conditions:
+
+    8 characters or longer
+    contains special characters
+    contains numbers
+
+So, we can remove any passwords that do not meet these conditions from our wordlist. Some tools would convert password policies to Hashcat or John rules, but hydra does not support rules for filtering passwords. So, we will simply use the following commands to do that for us:
+``` Bash
+sed -ri '/^.{,7}$/d' william.txt            # remove shorter than 8
+sed -ri '/[!-/:-@\[-`\{-~]+/!d' william.txt # remove no special chars
+sed -ri '/[0-9]+/!d' william.txt            # remove no numbers
+```
+We see that these commands shortened the wordlist from 43k passwords to around 13k passwords, around 70% shorter.
+
+It is still possible to create many permutations of each word in that list. We never know how our target thinks when creating their password, and so our safest option is to add as many alterations and permutations as possible, noting that this will, of course, take much more time to brute force.
+
+Many great tools do word mangling and case permutation quickly and easily, like rsmangler or The Mentalist. These tools have many other options, which can make any small wordlist reach millions of lines long. We should keep these tools in mind because we might need them in other modules and situations.
+
+As a starting point, we will stick to the wordlist we have generated so far and not perform any mangling on it. In case our wordlist does not hit a successful login, we will go back to these tools and perform some mangling to increase our chances of guessing the password.
+
+We should also consider creating a personalized username wordlist based on the person's available details. For example, the person's username could be b.gates or gates or bill, and many other potential variations. There are several methods to create the list of potential usernames, the most basic of which is simply writing it manually.
+
+One such tool we can use is Username Anarchy, which we can clone from GitHub, as follows:
+git clone https://github.com/urbanadventurer/username-anarchy.git
+
+This tool has many use cases that we can take advantage of to create advanced lists of potential usernames. However, for our simple use case, we can simply run it and provide the first/last names as arguments, and forward the output into a file, as follows:
+./username-anarchy Bill Gates > bill.txt
+
+We should finally have our username and passwords wordlists ready and we could attack the SSH server.
+
 ## Service Authentication Brute Forcing
+
+The command used to attack a login service is fairly straightforward. We simply have to provide the username/password wordlists, and add service://SERVER_IP:PORT at the end. As usual, we will add the -u -f flags. Finally, when we run the command for the first time, hydra will suggest that we add the -t 4 flag for a max number of parallel attempts, as many SSH limit the number of parallel connections and drop other connections, resulting in many of our attempts being dropped. Our final command should be as follows:
+
+`hydra -L bill.txt -P william2.txt -u -f -M servers.txt -t 4 ssh`
+
+Running this returns:
+host: 83.136.254.223   login: b.gates   password: 4dn1l3M!$
+
+Then when we want to get on the server
+`ssh b.gates@83.136.255.150 -p 48493`
+
+The questions in this section are:
+Using what you learned in this section, try to brute force the SSH login of the user "b.gates" in the target server shown above. Then try to SSH into the server. You should find a flag in the home dir. What is the content of the flag? 
+
+Once we run the above command to get in. We can just run `cat flag.txt`.
+
+Once you ssh in, try brute forcing the FTP login for the other user. You should find another flag in their home directory. What is the flag? 
+
+To do this we can run:
+`ls /home` 
+And see there is another user named m.gates.
+
+We notice another user, m.gates. We also notice in our local recon that port 21 is open locally, indicating that an FTP must be available:
+
+`netstat -antp | grep -i list`
+
+Next, we can try brute forcing the FTP login for the m.gates user now.
+Note 1: Sometimes administrators test their security measures and policies with different tools. In this case, the administrator of this web server kept "hydra" installed. We can benefit from it and use it against the local system by attacking the FTP service locally or remotely.
+Note 2: "rockyou-10.txt" can be found in "/opt/useful/SecLists/Passwords/Leaked-Databases/rockyou-10.txt", which contains 92 passwords in total. This is a shorter version of "rockyou.txt" which includes 14,344,391 passwords.
+
+This server already has this file installed when we ssh in. So we can run:
+`hydra -l m.gates -P rockyou-10.txt ftp://127.0.0.1`
+
+Then we get `host: 127.0.0.1   login: m.gates   password: computer`
+
+So we can run ftp 127.0.0.1
+
+Then when we use the credentials to log in we can run:
+```
+dir (to see the files)
+get flag.txt (copy the file down)
+```
+Then we can run quit and leave the ftp.
+And cat flag.txt again for the new answer.
 
 # Skills Assessment
 
