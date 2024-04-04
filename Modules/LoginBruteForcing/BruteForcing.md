@@ -329,4 +329,52 @@ And cat flag.txt again for the new answer.
 
 ## Skills Assessment - Website
 
+The questions in this section are:
+When you try to access the IP shown above, you will not have authorization to access it. Brute force the authentication and retrieve the flag. 
+
+To get the answer to this all we have to do is run the below code and we get a valid login.
+`hydra -C ../SecLists/Passwords/Default-Credentials/ftp-betterdefaultpasslist.txt -M servers.txt http-get /`
+
+Once you access the login page, you are tasked to brute force your way into this page as well. What is the flag hidden inside?
+
+Once we are in we see that it is the same as before. It is a post form. So we should be able to use these as our paramters:
+`"/admin_login.php:user=^USER^&pass=^PASS^:F=<form name='log-in'"`
+
+So if we try:
+`hydra -C ../SecLists/Passwords/Default-Credentials/ftp-betterdefaultpasslist.txt -M servers.txt http-post-form "/admin_login.php:user=^USER^&pass=^PASS^:F=<form name='log-in'"`
+
+Nothing. No surprise. We will probably need to find a valid password pair with a big list. 
+
+Running gets the answer: 
+hydra -L ../SecLists/Usernames/top-usernames-shortlist.txt -P ../SecLists/Passwords/Leaked-Databases/rockyou-75.txt -f -u -M servers.txt http-post-form "/admin_login.php:user=^USER^&pass=^PASS^:F=<form name='log-in'"
+
+Turns out the user is the same (user) should have tried that and just test passwords. But it worked anyway.
+
 ## Skills Assessment - Service Login
+
+The page on this says:
+We are given the IP address of an online academy but have no further information about their website. As the first step of conducting a Penetration Testing engagement, we have to determine whether any weak credentials are used across the website and other login services.
+
+Look beyond just default/common passwords. Use the skills learned in this module to gather information about employees we identified to create custom wordlists to attack their accounts.
+
+Attack the web application and submit two flags using the skills we covered in the module sections and submit them to complete this module.
+
+So its safe to assume we will need to use Cupp.
+
+The questions in this section are:
+As you now have the name of an employee from the previous skills assessment question, try to gather basic information about them, and generate a custom password wordlist that meets the password policy. Also use 'usernameGenerator' to generate potential usernames for the employee. Finally, try to brute force the SSH server shown above to get the flag. 
+
+From the previous section we know the user's name is Harry Potter. So if we pull up the wiki page of Harry Potter we can get some basic information.
+
+We also know the password requirements are:
+    Must be 8 characters or longer
+    Must contain numbers
+    Must contain special characters
+
+Running Cupp, with as much information as we could get from the Wiki, I got Harry.txt. But then I needed to remove the lines that don't match the password requirements. So I ran:
+
+`cat Harry.txt | sed -r '/^.{,7}$/d' | sed -r '/[!-/:-@\[-`\{-~]+/!d' | sed -r '/[0-9]+/!d' > harry.txt`
+
+
+
+Once you are in, you should find that another user exists in server. Try to brute force their login, and get their flag. 
