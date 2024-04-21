@@ -602,15 +602,124 @@ Scraping a website could be quite complicated because some web applications scra
 The question in this section is:
 Reset the htbadmin user's password by guessing one of the questions. What is the flag? 
 
-
+This page shows a script we could try to use to brute force this, but going through the questions, there was one about the favorite color. So I just sent the request to repeater in Burp and tried every color. The answer was pink.
 
 ## Username Injection
+
+When trying to understand the high-level logic behind a reset form, it is unimportant if it sends a token, a temporary password, or requires the correct answer. At a high level, when a user inputs the expected value, the reset functionality lets the user change the password or pass the authentication phase. The function that checks if a reset token is valid and is also the right one for a given account is usually carefully developed and tested with security in mind. However, it is sometimes vulnerable during the second phase of the process, when the user resets the password after the first login has been granted.
+
+Imagine the following scenario. After creating an account of our own, we request a password reset. Suppose we come across a form that behaves as follows.
+
+We can try to inject a different username and/or email address, looking for a possible hidden input value or guessing any valid input name. It has been observed that some applications give precedence to received information against information stored in a session value.
+
+An example of vulnerable code looks like this (the $_REQUEST variable contains both $_GET and $_POST):
+``` php
+<?php
+  if isset($_REQUEST['userid']) {
+	$userid = $_REQUEST['userid'];
+  } else if isset($_SESSION['userid']) {
+	$userid = $_SESSION['userid'];
+  } else {
+	die("unknown userid");
+  }
+```
+This could look weird at first but think about a web application that allows admins or helpdesk employees to reset other users' passwords. Often, the function that changes the password is reused and shares the same codebase with the one used by standard users to change their password. An application should always check authorization before any change. In this case, it has to check if the user has the rights to modify the password for the target user. With this in mind, we should enumerate the web application to identify how it expects the username or email field during the login phase, when there are messages or a communication exchange, or when we see other users' profiles. Having collected a list of all possible input field names, we will attack the application. The attack will be executed by sending a password reset request while logged in with our user and injecting the target user's email or username through the possible field names (one at a time).
+
+We brute-forced the username and password on a web application that uses userid as a field name during the login process in previous exercises. Let us keep this field as an identifier of the user and operate on it. A standard request looks as follows.
+
+If you tamper with the request by adding the userid field, you can change the password for another user.
+
+As we can see, the application replies with a success message.
+
+When we have a small number of fields and user/email values to test, you can mount this attack using an intercepting proxy. If you have many of them, you can automate the attack using any fuzzer or a custom script. We prepared a small playground to let you test this attack. You can download the PHP script here and Python script here. Take your time to study both files, then try to replicate the attack we showed.
+
+The question in this section is:
+Login with the credentials "htbuser:htbuser" and abuse the reset password function to escalate to "htbadmin" user. What is the flag?
+
+When we reset the password for htbuser we see the submit content is:
+oldpasswd=htbuser&newpasswd=password1&confirm=password1&&submit=doreset
+
+We can send this to repeater and change this content to:
+oldpasswd=password1&newpasswd=password2&confirm=password2&userid=htbadmin&submit=doreset
+
+And we see that password is changed. Then we can sign in and get the answer.
 
 # Session Attacks
 
 ## Brute Forcing Cookies
 
+There was a lot of infomration in this section that I didn't feel I needed to copy and paste.
+
+The questions in this section are:
+Tamper the session cookie for the application at subdirectory /question1/ to give yourself access as a super user. What is the flag? 
+
+Inspecting the SessionID cookie in burp it is clearly URL encoded. And when un-encoded, it becomes base64, then hex. Decoding fully we get:
+user:htbuser;role:student;time:1713734120
+
+Changing that to:
+user:htbadmin;role:admin;time:1713734120
+
+and re-encoding:
+`echo 'user:htbuser;role:admin;time:1713734120' | xxd -p | base64`
+We get NzU3MzY1NzIzYTY4NzQ2MjYxNjQ2ZDY5NmUzYjcyNmY2YzY1M2E2MTY0NmQ2OTZlM2I3NDY5NmQ2NTNhCjMxMzczMTMzMzczMzM0MzEzMjMwMGEK
+
+But this fails to actually work. What I had to was pass the request into Burp with a wordlist of potential roles, then encode as it was originally. I found that the `super` role was the answer.
+
+Log in to the target application and tamper the rememberme token to give yourself super user privileges. After escalating privileges, submit the flag as your answer. 
+
+The hint here is "Correct decoding is the key"
+
+The cookie is: ougfu558t972bpc30usmk58est
+
+This is not base64 or hex.
+
+Forums pointed out to click the remember me box. Now I found the persistent cookie:
+HTBPERSISTENT=eJwrLU4tssooSSoF0tZF%2BTmpVsUlpSmpeSXWJZm5qVaG5obG5sYWJqaGAE4TDlE%3D; 
+
+After passed through URL decode it looks like Base64. When I base64 decode the magic bytes look like 78 9C which are related to zlib.
+
+Using Magic, on CyberChef and passing in the base64 encode I get:
+user:htbuser;role:student;time:1713738451
+
+Which is the same output as the previous question. But now we can try to the script probably. Or I might be able to just reverse this with super as the role.
+
+Changing the role to super and re-encoding then sending a request with:
+Cookie: HTBPERSISTENT=eJwVxlsKACEIAMAziYVhtwmEgmLDx/3dvmbCRHn6eHb9trDF/evrCAMBErZSIQEswQ15; PHPSESSID=kkk6bjvrld0rkharjpkt7ldtt1
+
+Gets the answer.
+
 ## Insecure Token Handling
+
+One difference between cookies and tokens is that cookies are used to send and store arbitrary data, while tokens are explicitly used to send authorization data. When we perform token-based authentication such as OpenID, or OpenID Connect, we receive an id token from a trusted authority. This is often referred to as JSON Web Token (JWT) and token-based authentication.
+
+A typical use case for JWT is continuous authentication for Single Sign-On (SSO). However, JWT can be used flexibly for any field where compact, signed, and encrypted information needs to be transmitted. A token should be generated safely but should be handled safely too. Otherwise, all its security could break apart.
+
+A token should expire after the user has been inactive for a given amount of time, for example, after 1 hour, and should expire even if there is activity after a given amount of time, such as 24 hours. If a token never expires, the Session Fixation attack discussed below is even worse, and an attacker could try to brute force a valid session token created in the past. Of course, the chances of succeeding in a brute force attack are proportionate to the shortness of the cookie value itself.
+
+One of the most important rules about a cookie token is that its value should change as soon as the access level changes. This means that a guest user should receive a cookie, and as soon as they authenticate, the token should change. The same should happen if the user gets more grants during a sudo-like session. If this does not occur, the web application, or better any authenticated user, could be vulnerable to Session Fixation.
+
+This attack is carried out by phishing a user with a link that has a fixed, and, unknown by the web application, session value. The web application should bounce the user to the login page because, as discussed, the SESSIONID is not associated with any valid one. When the user logs in, the SESSIONID remains the same, and an attacker can reuse it.
+
+A simple example could be a web application that also sets SESSIONID from a URL parameter like this:
+
+    https://brokenauthentication/view.php?SESSIONID=anyrandomvalue
+
+When a user that does not have a valid session clicks on that link, the web application could set SESSIONID as any random value.
+
+Take the below request as an example.
+At line 4 of the server’s response, the Set-Cookie header has the value specified at the URL parameter and a redirect to the login page. If the web application does not change that token after a successful login, the phisher/attacker could reuse it anytime until it expires.
+
+Following the Session Fixation attack, it is worth mentioning another vulnerability named Token in URL. Until recent days, it was possible to catch a valid session token by making the user browse away from a website where they had been authenticated, moving to a website controlled by the attacker. The Referer header carried the full URL of the previous website, including both the domain and parameters and the webserver would log it.
+
+Nowadays, this attack is not always feasible because, by default, modern browsers strip the Referer header. However, it could still be an issue if the web application suffers from a Local File Inclusion vulnerability or the Referer-Policy header is set in an unsafe manner.
+
+If we can read application or web server logs, we may also obtain a high number of valid tokens remotely. It is also possible to obtain valid tokens remotely if we manage to compromise an external analytics or log collection tool used by a web server or application. You can learn more and practice this attack by studying the File Inclusion / Directory Traversal module.
+
+Secure session handling starts from giving the counterpart, the user, as little information as possible. If a cookie contains only a random sequence, an attacker will have a tough time. On the other side, the web application should hold every detail safely and use a cookie value just as an id to fetch the correct session.
+
+Some security libraries offer the feature of transparently encrypting cookie IDs also at the server level. Encryption is performed using some hardcoded values, concatenated to some value taken from the request, such as User-Agent, IP address or a part of it, or another environment variable. An excellent example of this technique has been implemented inside the Snuffleupagus PHP module. Like any other security measure, cookie encryption is not a silver bullet and could cause unexpected issues.
+
+Session security should also cover multiple logins for the same user and concurrent usage of the same session token from different endpoints. A user should be allowed to have access to an account from one device at a time. An exception can be set for mobile access, which should use a parallel session check. Suppose the web application can identify the endpoint, for example, by using the user agent, screen size and resolution, or other tricks used by trackers. In that case, it should set a sticky session on a given endpoint to raise the overall security level.
 
 # Skill Assessment
 
