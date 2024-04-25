@@ -5,7 +5,7 @@ from sys import exit
 from time import time
 
 # Change the url to your target / victim
-url = "http://94.237.63.83:40902/question1/"
+url = "http://94.237.49.182:54632/question1/"
 
 
 # To have a wide window try to bruteforce starting from 1050 seconds ago till 1050 seconds after.
