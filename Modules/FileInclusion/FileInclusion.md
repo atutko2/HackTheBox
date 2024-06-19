@@ -764,7 +764,141 @@ And that gives me the name of the file. From there its very easy to get the flag
 
 ## Automated Scanning
 
+It is essential to understand how file inclusion attacks work and how we can manually craft advanced payloads and use custom techniques to reach remote code execution. This is because in many cases, for us to exploit the vulnerability, it may require a custom payload that matches its specific configurations. Furthermore, when dealing with security measures like a WAF or a firewall, we have to apply our understanding to see how a specific payload/character is being blocked and attempt to craft a custom payload to work around it.
+
+We may not need to manually exploit the LFI vulnerability in many trivial cases. There are many automated methods that can help us quickly identify and exploit trivial LFI vulnerabilities. We can utilize fuzzing tools to test a huge list of common LFI payloads and see if any of them work, or we can utilize specialized LFI tools to test for such vulnerabilities. This is what we will discuss in this section.
+
+The HTML forms users can use on the web application front-end tend to be properly tested and well secured against different web attacks. However, in many cases, the page may have other exposed parameters that are not linked to any HTML forms, and hence normal users would never access or unintentionally cause harm through. This is why it may be important to fuzz for exposed parameters, as they tend not to be as secure as public ones.
+
+The Attacking Web Applications with Ffuf module goes into details on how we can fuzz for GET/POST parameters. For example, we can fuzz the page for common GET parameters, as follows:
+
+`ffuf -w /opt/useful/SecLists/Discovery/Web-Content/burp-parameter-names.txt:FUZZ -u 'http://<SERVER_IP>:<PORT>/index.php?FUZZ=value' -fs 2287`
+
+Once we identify an exposed parameter that isn't linked to any forms we tested, we can perform all of the LFI tests discussed in this module. This is not unique to LFI vulnerabilities but also applies to most web vulnerabilities discussed in other modules, as exposed parameters may be vulnerable to any other vulnerability as well.
+
+So far in this module, we have been manually crafting our LFI payloads to test for LFI vulnerabilities. This is because manual testing is more reliable and can find LFI vulnerabilities that may not be identified otherwise, as discussed earlier. However, in many cases, we may want to run a quick test on a parameter to see if it is vulnerable to any common LFI payload, which may save us time in web applications where we need to test for various vulnerabilities.
+
+There are a number of LFI Wordlists we can use for this scan. A good wordlist is LFI-Jhaddix.txt, as it contains various bypasses and common files, so it makes it easy to run several tests at once. We can use this wordlist to fuzz the ?language= parameter we have been testing throughout the module, as follows:
+
+https://github.com/danielmiessler/SecLists/blob/master/Fuzzing/LFI/LFI-Jhaddix.txt
+
+`ffuf -w /opt/useful/SecLists/Fuzzing/LFI/LFI-Jhaddix.txt:FUZZ -u 'http://<SERVER_IP>:<PORT>/index.php?language=FUZZ' -fs 2287`
+
+As we can see, the scan yielded a number of LFI payloads that can be used to exploit the vulnerability. Once we have the identified payloads, we should manually test them to verify that they work as expected and show the included file content.
+
+In addition to fuzzing LFI payloads, there are different server files that may be helpful in our LFI exploitation, so it would be helpful to know where such files exist and whether we can read them. Such files include: Server webroot path, server configurations file, and server logs.
+
+We may need to know the full server webroot path to complete our exploitation in some cases. For example, if we wanted to locate a file we uploaded, but we cannot reach its /uploads directory through relative paths (e.g. ../../uploads). In such cases, we may need to figure out the server webroot path so that we can locate our uploaded files through absolute paths instead of relative paths.
+
+To do so, we can fuzz for the index.php file through common webroot paths, which we can find in this wordlist for Linux or this wordlist for Windows. Depending on our LFI situation, we may need to add a few back directories (e.g. ../../../../), and then add our index.php afterwords.
+
+https://github.com/danielmiessler/SecLists/blob/master/Discovery/Web-Content/default-web-root-directory-linux.txt
+
+https://github.com/danielmiessler/SecLists/blob/master/Discovery/Web-Content/default-web-root-directory-windows.txt
+
+The following is an example of how we can do all of this with ffuf:
+`ffuf -w /opt/useful/SecLists/Discovery/Web-Content/default-web-root-directory-linux.txt:FUZZ -u 'http://<SERVER_IP>:<PORT>/index.php?language=../../../../FUZZ/index.php' -fs 2287`
+
+As we can see, the scan did indeed identify the correct webroot path at (/var/www/html/). We may also use the same LFI-Jhaddix.txt wordlist we used earlier, as it also contains various payloads that may reveal the webroot. If this does not help us in identifying the webroot, then our best choice would be to read the server configurations, as they tend to contain the webroot and other important information, as we'll see next.
+
+As we have seen in the previous section, we need to be able to identify the correct logs directory to be able to perform the log poisoning attacks we discussed. Furthermore, as we just discussed, we may also need to read the server configurations to be able to identify the server webroot path and other important information (like the logs path!).
+
+To do so, we may also use the LFI-Jhaddix.txt wordlist, as it contains many of the server logs and configuration paths we may be interested in. If we wanted a more precise scan, we can use this wordlist for Linux or this wordlist for Windows, though they are not part of seclists, so we need to download them first. Let's try the Linux wordlist against our LFI vulnerability, and see what we get:
+
+`ffuf -w ./LFI-WordList-Linux:FUZZ -u 'http://<SERVER_IP>:<PORT>/index.php?language=../../../../FUZZ' -fs 2287`
+
+As we can see, the scan returned over 60 results, many of which were not identified with the LFI-Jhaddix.txt wordlist, which shows us that a precise scan is important in certain cases. Now, we can try reading any of these files to see whether we can get their content. We will read (/etc/apache2/apache2.conf), as it is a known path for the apache server configuration:
+
+`curl http://<SERVER_IP>:<PORT>/index.php?language=../../../../etc/apache2/apache2.conf`
+
+As we can see, we do get the default webroot path and the log path. However, in this case, the log path is using a global apache variable (APACHE_LOG_DIR), which are found in another file we saw above, which is (/etc/apache2/envvars), and we can read it to find the variable values:
+
+`curl http://<SERVER_IP>:<PORT>/index.php?language=../../../../etc/apache2/envvars`
+
+As we can see, the (APACHE_LOG_DIR) variable is set to (/var/log/apache2), and the previous configuration told us that the log files are /access.log and /error.log, which have accessed in the previous section.
+
+Note: Of course, we can simply use a wordlist to find the logs, as multiple wordlists we used in this sections did show the log location. But this exercises shows us how we can manually go through identified files, and then use the information we find to further identify more files and important information. This is quite similar to when we read different file sources in the PHP filters section, and such efforts may reveal previously unknown information about the web application, which we can use to further exploit it.
+
+Finally, we can utilize a number of LFI tools to automate much of the process we have been learning, which may save time in some cases, but may also miss many vulnerabilities and files we may otherwise identify through manual testing. The most common LFI tools are LFISuite, LFiFreak, and liffy. We can also search GitHub for various other LFI tools and scripts, but in general, most tools perform the same tasks, with varying levels of success and accuracy.
+
+Unfortunately, most of these tools are not maintained and rely on the outdated python2, so using them may not be a long term solution. Try downloading any of the above tools and test them on any of the exercises we've used in this module to see their level of accuracy.
+------------
+
+The question in this section is:
+Fuzz the web application for exposed parameters, then try to exploit it with one of the LFI wordlists to read /flag.txt 
+
+Obviously, the first step here is to fuzz for paramaters, so lets start with:
+`ffuf -w /Users/noneya/Useful/SecLists/Discovery/Web-Content/burp-parameter-names.txt:FUZZ -u 'http://94.237.54.176:48714/index.php?FUZZ=value' -fs 2309`
+
+Looks like there is a paramter called view.
+
+Now I can try and use those lists to check for LFI.
+
+`ffuf -w /Users/noneya/Useful/SecLists/Fuzzing/LFI/LFI-Jhaddix.txt:FUZZ -u 'http://94.237.54.176:48714/index.php?view=FUZZ'`
+
+This returned a bunch of these:
+`../../../../../../../../../../../../../../../../../etc/passwd`
+
+And checking that file it works.
+
+So lets try:
+`../../../../../../../../../../../../../../../../../flag.txt`
+
+And that worked.
+
 ## File Inclusion Prevention
+
+This module has discussed various ways to detect and exploit file inclusion vulnerabilities, along with different security bypasses and remote code execution techniques we can utilize. With that understanding of how to identify file inclusion vulnerabilities through penetration testing, we should now learn how to patch these vulnerabilities and harden our systems to reduce the chances of their occurrence and reduce the impact if they do.
+
+The most effective thing we can do to reduce file inclusion vulnerabilities is to avoid passing any user-controlled inputs into any file inclusion functions or APIs. The page should be able to dynamically load assets on the back-end, with no user interaction whatsoever. Furthermore, in the first section of this module, we discussed different functions that may be utilized to include other files within a page and mentioned the privileges each function has. Whenever any of these functions is used, we should ensure that no user input is directly going into them. Of course, this list of functions is not comprehensive, so we should generally consider any function that can read files.
+
+In some cases, this may not be feasible, as it may require changing the whole architecture of an existing web application. In such cases, we should utilize a limited whitelist of allowed user inputs, and match each input to the file to be loaded, while having a default value for all other inputs. If we are dealing with an existing web application, we can create a whitelist that contains all existing paths used in the front-end, and then utilize this list to match the user input. Such a whitelist can have many shapes, like a database table that matches IDs to files, a case-match script that matches names to files, or even a static json map with names and files that can be matched.
+
+Once this is implemented, the user input is not going into the function, but the matched files are used in the function, which avoids file inclusion vulnerabilities.
+
+If attackers can control the directory, they can escape the web application and attack something they are more familiar with or use a universal attack chain. As we have discussed throughout the module, directory traversal could potentially allow attackers to do any of the following:
+
+```
+    Read /etc/passwd and potentially find SSH Keys or know valid user names for a password spray attack
+    Find other services on the box such as Tomcat and read the tomcat-users.xml file
+    Discover valid PHP Session Cookies and perform session hijacking
+    Read current web application configuration and source code
+```
+
+The best way to prevent directory traversal is to use your programming language's (or framework's) built-in tool to pull only the filename. For example, PHP has basename(), which will read the path and only return the filename portion. If only a filename is given, then it will return just the filename. If just the path is given, it will treat whatever is after the final / as the filename. The downside to this method is that if the application needs to enter any directories, it will not be able to do it.
+
+If you create your own function to do this method, it is possible you are not accounting for a weird edge case. For example, in your bash terminal, go into your home directory (cd ~) and run the command cat .?/.*/.?/etc/passwd. You'll see Bash allows for the ? and * wildcards to be used as a .. Now type php -a to enter the PHP Command Line interpreter and run echo file_get_contents('.?/.*/.?/etc/passwd');. You'll see PHP does not have the same behaviour with the wildcards, if you replace ? and * with ., the command will work as expected. This demonstrates there is an edge cases with our above function, if we have PHP execute bash with the system() function, the attacker would be able to bypass our directory traversal prevention. If we use native functions to the framework we are in, there is a chance other users would catch edge cases like this and fix it before it gets exploited in our web application.
+
+Furthermore, we can sanitize the user input to recursively remove any attempts of traversing directories, as follows:
+
+``` php
+while(substr_count($input, '../', 0)) {
+    $input = str_replace('../', '', $input);
+};
+```
+As we can see, this code recursively removes ../ sub-strings, so even if the resulting string contains ../ it would still remove it, which would prevent some of the bypasses we attempted in this module.
+
+Several configurations may also be utilized to reduce the impact of file inclusion vulnerabilities in case they occur. For example, we should globally disable the inclusion of remote files. In PHP this can be done by setting allow_url_fopen and allow_url_include to Off.
+
+It's also often possible to lock web applications to their web root directory, preventing them from accessing non-web related files. The most common way to do this in today's age is by running the application within Docker. However, if that is not an option, many languages often have a way to prevent accessing files outside of the web directory. In PHP that can be done by adding open_basedir = /var/www in the php.ini file. Furthermore, you should ensure that certain potentially dangerous modules are disabled, like PHP Expect mod_userdir.
+
+If these configurations are applied, it should prevent accessing files outside the web application folder, so even if an LFI vulnerability is identified, its impact would be reduced.
+
+The universal way to harden applications is to utilize a Web Application Firewall (WAF), such as ModSecurity. When dealing with WAFs, the most important thing to avoid is false positives and blocking non-malicious requests. ModSecurity minimizes false positives by offering a permissive mode, which will only report things it would have blocked. This lets defenders tune the rules to make sure no legitimate request is blocked. Even if the organization never wants to turn the WAF to "blocking mode", just having it in permissive mode can be an early warning sign that your application is being attacked.
+
+Finally, it is important to remember that the purpose of hardening is to give the application a stronger exterior shell, so when an attack does happen, the defenders have time to defend. According to the FireEye M-Trends Report of 2020, the average time it took a company to detect hackers was 30 days. With proper hardening, attackers will leave many more signs, and the organization will hopefully detect these events even quicker.
+
+It is important to understand the goal of hardening is not to make your system un-hackable, meaning you cannot neglect watching logs over a hardened system because it is "secure". Hardened systems should be continually tested, especially after a zero-day is released for a related application to your system (ex: Apache Struts, RAILS, Django, etc.). In most cases, the zero-day would work, but thanks to hardening, it may generate unique logs, which made it possible to confirm whether the exploit was used against the system or not.
+--------------
+
+The questions in this section were:
+ What is the full path to the php.ini file for Apache?
+
+For this I just connected and ran a find, then parsed the results.
+
+Edit the php.ini file to block system(), then try to execute PHP Code that uses system. Read the /var/log/apache2/error.log file and fill in the blank: system() has been disabled for ________ reasons. 
+
+This one I just guessed it meant security.
 
 # Skill Assessment
 
