@@ -580,26 +580,384 @@ The answer is Ubuntu
 
 ## Crawling
 
+Crawling, often called spidering, is the automated process of systematically browsing the World Wide Web. Similar to how a spider navigates its web, a web crawler follows links from one page to another, collecting information. These crawlers are essentially bots that use pre-defined algorithms to discover and index web pages, making them accessible through search engines or for other purposes like data analysis and web reconnaissance.
+
+The basic operation of a web crawler is straightforward yet powerful. It starts with a seed URL, which is the initial web page to crawl. The crawler fetches this page, parses its content, and extracts all its links. It then adds these links to a queue and crawls them, repeating the process iteratively. Depending on its scope and configuration, the crawler can explore an entire website or even a vast portion of the web.
+
+Homepage: You start with the homepage containing link1, link2, and link3.
+
+Visiting link1: Visiting link1 shows the homepage, link2, and also link4 and link5.
+
+Continuing the Crawl: The crawler continues to follow these links systematically, gathering all accessible pages and their links.
+
+This example illustrates how a web crawler discovers and collects information by systematically following links, distinguishing it from fuzzing which involves guessing potential links.
+
+There are two primary types of crawling strategies.
+
+Breadth-first crawling prioritizes exploring a website's width before going deep. It starts by crawling all the links on the seed page, then moves on to the links on those pages, and so on. This is useful for getting a broad overview of a website's structure and content.
+
+In contrast, depth-first crawling prioritizes depth over breadth. It follows a single path of links as far as possible before backtracking and exploring other paths. This can be useful for finding specific content or reaching deep into a website's structure.
+
+The choice of strategy depends on the specific goals of the crawling process.
+
+Crawlers can extract a diverse array of data, each serving a specific purpose in the reconnaissance process:
+
+```
+
+    Links (Internal and External): These are the fundamental building blocks of the web, connecting pages within a website (internal links) and to other websites (external links). Crawlers meticulously collect these links, allowing you to map out a website's structure, discover hidden pages, and identify relationships with external resources.
+    Comments: Comments sections on blogs, forums, or other interactive pages can be a goldmine of information. Users often inadvertently reveal sensitive details, internal processes, or hints of vulnerabilities in their comments.
+    Metadata: Metadata refers to data about data. In the context of web pages, it includes information like page titles, descriptions, keywords, author names, and dates. This metadata can provide valuable context about a page's content, purpose, and relevance to your reconnaissance goals.
+    Sensitive Files: Web crawlers can be configured to actively search for sensitive files that might be inadvertently exposed on a website. This includes backup files (e.g., .bak, .old), configuration files (e.g., web.config, settings.php), log files (e.g., error_log, access_log), and other files containing passwords, API keys, or other confidential information. Carefully examining the extracted files, especially backup and configuration files, can reveal a trove of sensitive information, such as database credentials, encryption keys, or even source code snippets.
+```
+
+Understanding the context surrounding the extracted data is paramount.
+
+A single piece of information, like a comment mentioning a specific software version, might not seem significant on its own. However, when combined with other findings—such as an outdated version listed in metadata or a potentially vulnerable configuration file discovered through crawling—it can transform into a critical indicator of a potential vulnerability.
+
+The true value of extracted data lies in connecting the dots and constructing a comprehensive picture of the target's digital landscape.
+
+For instance, a list of extracted links might initially appear mundane. But upon closer examination, you notice a pattern: several URLs point to a directory named /files/. This triggers your curiosity, and you decide to manually visit the directory. To your surprise, you find that directory browsing is enabled, exposing a host of files, including backup archives, internal documents, and potentially sensitive data. This discovery wouldn't have been possible by merely looking at individual links in isolation; the contextual analysis led you to this critical finding.
+
+Similarly, seemingly innocuous comments can gain significance when correlated with other discoveries. A comment mentioning a "file server" might not raise any red flags initially. However, when combined with the aforementioned discovery of the /files/ directory, it reinforces the possibility that the file server is publicly accessible, potentially exposing sensitive information or confidential data.
+
+Therefore, it's essential to approach data analysis holistically, considering the relationships between different data points and their potential implications for your reconnaissance goals.
+
 ## robots.txt
+
+Imagine you're a guest at a grand house party. While you're free to mingle and explore, there might be certain rooms marked "Private" that you're expected to avoid. This is akin to how robots.txt functions in the world of web crawling. It acts as a virtual "etiquette guide" for bots, outlining which areas of a website they are allowed to access and which are off-limits.
+
+Technically, robots.txt is a simple text file placed in the root directory of a website (e.g., www.example.com/robots.txt). It adheres to the Robots Exclusion Standard, guidelines for how web crawlers should behave when visiting a website. This file contains instructions in the form of "directives" that tell bots which parts of the website they can and cannot crawl.
+
+The directives in robots.txt typically target specific user-agents, which are identifiers for different types of bots. For example, a directive might look like this:
+``` txt
+User-agent: *
+Disallow: /private/
+```
+
+This directive tells all user-agents (* is a wildcard) that they are not allowed to access any URLs that start with /private/. Other directives can allow access to specific directories or files, set crawl delays to avoid overloading a server or provide links to sitemaps for efficient crawling.
+
+The robots.txt file is a plain text document that lives in the root directory of a website. It follows a straightforward structure, with each set of instructions, or "record," separated by a blank line. Each record consists of two main components:
+
+```
+
+    User-agent: This line specifies which crawler or bot the following rules apply to. A wildcard (*) indicates that the rules apply to all bots. Specific user agents can also be targeted, such as "Googlebot" (Google's crawler) or "Bingbot" (Microsoft's crawler).
+    Directives: These lines provide specific instructions to the identified user-agent.
+```
+Common directives include:
+
+```
+Directive 	Description 	Example
+Disallow 	Specifies paths or patterns that the bot should not crawl. 	Disallow: /admin/ (disallow access to the admin directory)
+Allow 	Explicitly permits the bot to crawl specific paths or patterns, even if they fall under a broader Disallow rule. 	Allow: /public/ (allow access to the public directory)
+Crawl-delay 	Sets a delay (in seconds) between successive requests from the bot to avoid overloading the server. 	Crawl-delay: 10 (10-second delay between requests)
+Sitemap 	Provides the URL to an XML sitemap for more efficient crawling. 	Sitemap: https://www.example.com/sitemap.xml
+```
+
+While robots.txt is not strictly enforceable (a rogue bot could still ignore it), most legitimate web crawlers and search engine bots will respect its directives. This is important for several reasons:
+
+```
+    Avoiding Overburdening Servers: By limiting crawler access to certain areas, website owners can prevent excessive traffic that could slow down or even crash their servers.
+    Protecting Sensitive Information: Robots.txt can shield private or confidential information from being indexed by search engines.
+    Legal and Ethical Compliance: In some cases, ignoring robots.txt directives could be considered a violation of a website's terms of service or even a legal issue, especially if it involves accessing copyrighted or private data.
+```
+
+For web reconnaissance, robots.txt serves as a valuable source of intelligence. While respecting the directives outlined in this file, security professionals can glean crucial insights into the structure and potential vulnerabilities of a target website:
+
+```
+
+    Uncovering Hidden Directories: Disallowed paths in robots.txt often point to directories or files the website owner intentionally wants to keep out of reach from search engine crawlers. These hidden areas might house sensitive information, backup files, administrative panels, or other resources that could interest an attacker.
+    Mapping Website Structure: By analyzing the allowed and disallowed paths, security professionals can create a rudimentary map of the website's structure. This can reveal sections that are not linked from the main navigation, potentially leading to undiscovered pages or functionalities.
+    Detecting Crawler Traps: Some websites intentionally include "honeypot" directories in robots.txt to lure malicious bots. Identifying such traps can provide insights into the target's security awareness and defensive measures.
+
+```
+
+Here's an example of a robots.txt file:
+``` txt
+User-agent: *
+Disallow: /admin/
+Disallow: /private/
+Allow: /public/
+
+User-agent: Googlebot
+Crawl-delay: 10
+
+Sitemap: https://www.example.com/sitemap.xml
+```
+
+This file contains the following directives:
+
+    All user agents are disallowed from accessing the /admin/ and /private/ directories.
+    All user agents are allowed to access the /public/ directory.
+    The Googlebot (Google's web crawler) is specifically instructed to wait 10 seconds between requests.
+    The sitemap, located at https://www.example.com/sitemap.xml, is provided for easier crawling and indexing.
+
+By analyzing this robots.txt, we can infer that the website likely has an admin panel located at /admin/ and some private content in the /private/ directory.
 
 ## Well-Known URIs
 
+The .well-known standard, defined in RFC 8615, serves as a standardized directory within a website's root domain. This designated location, typically accessible via the /.well-known/ path on a web server, centralizes a website's critical metadata, including configuration files and information related to its services, protocols, and security mechanisms.
+
+By establishing a consistent location for such data, .well-known simplifies the discovery and access process for various stakeholders, including web browsers, applications, and security tools. This streamlined approach enables clients to automatically locate and retrieve specific configuration files by constructing the appropriate URL. For instance, to access a website's security policy, a client would request https://example.com/.well-known/security.txt.
+
+The Internet Assigned Numbers Authority (IANA) maintains a registry of .well-known URIs, each serving a specific purpose defined by various specifications and standards. Below is a table highlighting a few notable examples:
+
+```
+URI Suffix 	Description 	Status 	Reference
+security.txt 	Contains contact information for security researchers to report vulnerabilities. 	Permanent 	RFC 9116
+/.well-known/change-password 	Provides a standard URL for directing users to a password change page. 	Provisional 	https://w3c.github.io/webappsec-change-password-url/#the-change-password-well-known-uri
+openid-configuration 	Defines configuration details for OpenID Connect, an identity layer on top of the OAuth 2.0 protocol. 	Permanent 	http://openid.net/specs/openid-connect-discovery-1_0.html
+assetlinks.json 	Used for verifying ownership of digital assets (e.g., apps) associated with a domain. 	Permanent 	https://github.com/google/digitalassetlinks/blob/master/well-known/specification.md
+mta-sts.txt 	Specifies the policy for SMTP MTA Strict Transport Security (MTA-STS) to enhance email security. 	Permanent 	RFC 8461
+```
+
+This is just a small sample of the many .well-known URIs registered with IANA. Each entry in the registry offers specific guidelines and requirements for implementation, ensuring a standardized approach to leveraging the .well-known mechanism for various applications.
+
+In web recon, the .well-known URIs can be invaluable for discovering endpoints and configuration details that can be further tested during a penetration test. One particularly useful URI is openid-configuration.
+
+The openid-configuration URI is part of the OpenID Connect Discovery protocol, an identity layer built on top of the OAuth 2.0 protocol. When a client application wants to use OpenID Connect for authentication, it can retrieve the OpenID Connect Provider's configuration by accessing the https://example.com/.well-known/openid-configuration endpoint. This endpoint returns a JSON document containing metadata about the provider's endpoints, supported authentication methods, token issuance, and more:
+
+``` json
+{
+  "issuer": "https://example.com",
+  "authorization_endpoint": "https://example.com/oauth2/authorize",
+  "token_endpoint": "https://example.com/oauth2/token",
+  "userinfo_endpoint": "https://example.com/oauth2/userinfo",
+  "jwks_uri": "https://example.com/oauth2/jwks",
+  "response_types_supported": ["code", "token", "id_token"],
+  "subject_types_supported": ["public"],
+  "id_token_signing_alg_values_supported": ["RS256"],
+  "scopes_supported": ["openid", "profile", "email"]
+}
+```
+The information obtained from the openid-configuration endpoint provides multiple exploration opportunities:
+
+
+Endpoint Discovery:
+        Authorization Endpoint: Identifying the URL for user authorization requests.
+        Token Endpoint: Finding the URL where tokens are issued.
+        Userinfo Endpoint: Locating the endpoint that provides user information.
+    JWKS URI: The jwks_uri reveals the JSON Web Key Set (JWKS), detailing the cryptographic keys used by the server.
+    Supported Scopes and Response Types: Understanding which scopes and response types are supported helps in mapping out the functionality and limitations of the OpenID Connect implementation.
+    Algorithm Details: Information about supported signing algorithms can be crucial for understanding the security measures in place.
+
+
+Exploring the IANA Registry and experimenting with the various .well-known URIs is an invaluable approach to uncovering additional web reconnaissance opportunities. As demonstrated with the openid-configuration endpoint above, these standardized URIs provide structured access to critical metadata and configuration details, enabling security professionals to comprehensively map out a website's security landscape.
+
 ## Creepy Crawlies
+
+Web crawling is vast and intricate, but you don't have to embark on this journey alone. A plethora of web crawling tools are available to assist you, each with its own strengths and specialties. These tools automate the crawling process, making it faster and more efficient, allowing you to focus on analyzing the extracted data.
+
+Popular Web Crawlers
+
+    Burp Suite Spider: Burp Suite, a widely used web application testing platform, includes a powerful active crawler called Spider. Spider excels at mapping out web applications, identifying hidden content, and uncovering potential vulnerabilities.
+    OWASP ZAP (Zed Attack Proxy): ZAP is a free, open-source web application security scanner. It can be used in automated and manual modes and includes a spider component to crawl web applications and identify potential vulnerabilities.
+    Scrapy (Python Framework): Scrapy is a versatile and scalable Python framework for building custom web crawlers. It provides rich features for extracting structured data from websites, handling complex crawling scenarios, and automating data processing. Its flexibility makes it ideal for tailored reconnaissance tasks.
+    Apache Nutch (Scalable Crawler): Nutch is a highly extensible and scalable open-source web crawler written in Java. It's designed to handle massive crawls across the entire web or focus on specific domains. While it requires more technical expertise to set up and configure, its power and flexibility make it a valuable asset for large-scale reconnaissance projects.
+
+We will leverage Scrapy and a custom spider tailored for reconnaissance on inlanefreight.com. If you are interested in more information on crawling/spidering techniques, refer to the "Using Web Proxies" module, as it forms part of CBBH as well.
+
+Before we begin, ensure you have Scrapy installed on your system. If you don't, you can easily install it using pip, the Python package installer:
+
+```
+pip3 install scrapy
+```
+
+First, run this command in your terminal to download the custom scrapy spider, ReconSpider, and extract it to the current working directory.
+
+```
+wget https://academy.hackthebox.com/storage/modules/279/ReconSpider.zip
+unzip ReconSpider.zip 
+```
+
+With the files extracted, you can run ReconSpider.py using the following command:
+
+`python3 ReconSpider.py http://inlanefreight.com`
+
+Replace inlanefreight.com with the domain you want to spider. The spider will crawl the target and collect valuable information.
+
+After running ReconSpider.py, the data will be saved in a JSON file, results.json. This file can be explored using any text editor. Below is the structure of the JSON file produced:
+
+``` json
+{
+    "emails": [
+        "lily.floid@inlanefreight.com",
+        "cvs@inlanefreight.com",
+        ...
+    ],
+    "links": [
+        "https://www.themeansar.com",
+        "https://www.inlanefreight.com/index.php/offices/",
+        ...
+    ],
+    "external_files": [
+        "https://www.inlanefreight.com/wp-content/uploads/2020/09/goals.pdf",
+        ...
+    ],
+    "js_files": [
+        "https://www.inlanefreight.com/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.3.2",
+        ...
+    ],
+    "form_fields": [],
+    "images": [
+        "https://www.inlanefreight.com/wp-content/uploads/2021/03/AboutUs_01-1024x810.png",
+        ...
+    ],
+    "videos": [],
+    "audio": [],
+    "comments": [
+        "<!-- #masthead -->",
+        ...
+    ]
+}
+```
+
+-----------------
+The question in this section is:
+ After spidering inlanefreight.com, identify the location where future reports will be stored. Respond with the full domain, e.g., files.inlanefreight.com. 
+
+Running the spider and reading the results gets the answer.
 
 # Search Engine Discovery
 
 ## Search Engine Discovery
 
+Search engines serve as our guides in the vast landscape of the internet, helping us navigate through the seemingly endless expanse of information. However, beyond their primary function of answering everyday queries, search engines also hold a treasure trove of data that can be invaluable for web reconnaissance and information gathering. This practice, known as search engine discovery or OSINT (Open Source Intelligence) gathering, involves using search engines as powerful tools to uncover information about target websites, organisations, and individuals.
+
+At its core, search engine discovery leverages the immense power of search algorithms to extract data that may not be readily visible on websites. Security professionals and researchers can delve deep into the indexed web by employing specialised search operators, techniques, and tools, uncovering everything from employee information and sensitive documents to hidden login pages and exposed credentials.
+
+Search engine discovery is a crucial component of web reconnaissance for several reasons:
+
+    Open Source: The information gathered is publicly accessible, making it a legal and ethical way to gain insights into a target.
+
+    Breadth of Information: Search engines index a vast portion of the web, offering a wide range of potential information sources.
+
+    Ease of Use: Search engines are user-friendly and require no specialised technical skills.
+
+    Cost-Effective: It's a free and readily available resource for information gathering.
+
+The information you can pull together from Search Engines can be applied in several different ways as well:
+
+    Security Assessment: Identifying vulnerabilities, exposed data, and potential attack vectors.
+    Competitive Intelligence: Gathering information about competitors' products, services, and strategies.
+    Investigative Journalism: Uncovering hidden connections, financial transactions, and unethical practices.
+    Threat Intelligence: Identifying emerging threats, tracking malicious actors, and predicting potential attacks.
+
+However, it's important to note that search engine discovery has limitations. Search engines do not index all information, and some data may be deliberately hidden or protected.
+
+Search operators are like search engines' secret codes. These special commands and modifiers unlock a new level of precision and control, allowing you to pinpoint specific types of information amidst the vastness of the indexed web.
+
+While the exact syntax may vary slightly between search engines, the underlying principles remain consistent. Let's delve into some essential and advanced search operators:
+
+```
+Operator 	Operator Description 	Example 	Example Description
+site: 	Limits results to a specific website or domain. 	site:example.com 	Find all publicly accessible pages on example.com.
+inurl: 	Finds pages with a specific term in the URL. 	inurl:login 	Search for login pages on any website.
+filetype: 	Searches for files of a particular type. 	filetype:pdf 	Find downloadable PDF documents.
+intitle: 	Finds pages with a specific term in the title. 	intitle:"confidential report" 	Look for documents titled "confidential report" or similar variations.
+intext: or inbody: 	Searches for a term within the body text of pages. 	intext:"password reset" 	Identify webpages containing the term “password reset”.
+cache: 	Displays the cached version of a webpage (if available). 	cache:example.com 	View the cached version of example.com to see its previous content.
+link: 	Finds pages that link to a specific webpage. 	link:example.com 	Identify websites linking to example.com.
+related: 	Finds websites related to a specific webpage. 	related:example.com 	Discover websites similar to example.com.
+info: 	Provides a summary of information about a webpage. 	info:example.com 	Get basic details about example.com, such as its title and description.
+define: 	Provides definitions of a word or phrase. 	define:phishing 	Get a definition of "phishing" from various sources.
+numrange: 	Searches for numbers within a specific range. 	site:example.com numrange:1000-2000 	Find pages on example.com containing numbers between 1000 and 2000.
+allintext: 	Finds pages containing all specified words in the body text. 	allintext:admin password reset 	Search for pages containing both "admin" and "password reset" in the body text.
+allinurl: 	Finds pages containing all specified words in the URL. 	allinurl:admin panel 	Look for pages with "admin" and "panel" in the URL.
+allintitle: 	Finds pages containing all specified words in the title. 	allintitle:confidential report 2023 	Search for pages with "confidential," "report," and "2023" in the title.
+AND 	Narrows results by requiring all terms to be present. 	site:example.com AND (inurl:admin OR inurl:login) 	Find admin or login pages specifically on example.com.
+OR 	Broadens results by including pages with any of the terms. 	"linux" OR "ubuntu" OR "debian" 	Search for webpages mentioning Linux, Ubuntu, or Debian.
+NOT 	Excludes results containing the specified term. 	site:bank.com NOT inurl:login 	Find pages on bank.com excluding login pages.
+* (wildcard) 	Represents any character or word. 	site:socialnetwork.com filetype:pdf user* manual 	Search for user manuals (user guide, user handbook) in PDF format on socialnetwork.com.
+.. (range search) 	Finds results within a specified numerical range. 	site:ecommerce.com "price" 100..500 	Look for products priced between 100 and 500 on an e-commerce website.
+" " (quotation marks) 	Searches for exact phrases. 	"information security policy" 	Find documents mentioning the exact phrase "information security policy".
+- (minus sign) 	Excludes terms from the search results. 	site:news.com -inurl:sports 	Search for news articles on news.com excluding sports-related content.
+```
+
+Google Dorking, also known as Google Hacking, is a technique that leverages the power of search operators to uncover sensitive information, security vulnerabilities, or hidden content on websites, using Google Search.
+
+Here are some common examples of Google Dorks, for more examples, refer to the Google Hacking Database:
+
+```
+    Finding Login Pages:
+        site:example.com inurl:login
+        site:example.com (inurl:login OR inurl:admin)
+    Identifying Exposed Files:
+        site:example.com filetype:pdf
+        site:example.com (filetype:xls OR filetype:docx)
+    Uncovering Configuration Files:
+        site:example.com inurl:config.php
+        site:example.com (ext:conf OR ext:cnf) (searches for extensions commonly used for configuration files)
+    Locating Database Backups:
+        site:example.com inurl:backup
+        site:example.com filetype:sql
+```
+
 # Web Archives
 
 ## Web Archives
+
+In the fast-paced digital world, websites come and go, leaving only fleeting traces of their existence behind. However, thanks to the Internet Archive's Wayback Machine, we have a unique opportunity to revisit the past and explore the digital footprints of websites as they once were.
+
+The Wayback Machine is a digital archive of the World Wide Web and other information on the Internet. Founded by the Internet Archive, a non-profit organization, it has been archiving websites since 1996.
+
+It allows users to "go back in time" and view snapshots of websites as they appeared at various points in their history. These snapshots, known as captures or archives, provide a glimpse into the past versions of a website, including its design, content, and functionality.
+
+The Wayback Machine operates by using web crawlers to capture snapshots of websites at regular intervals automatically. These crawlers navigate through the web, following links and indexing pages, much like how search engine crawlers work. However, instead of simply indexing the information for search purposes, the Wayback Machine stores the entire content of the pages, including HTML, CSS, JavaScript, images, and other resources.
+
+The Wayback Machine's operation can be visualized as a three-step process:
+
+
+    Crawling: The Wayback Machine employs automated web crawlers, often called "bots," to browse the internet systematically. These bots follow links from one webpage to another, like how you would click hyperlinks to explore a website. However, instead of just reading the content, these bots download copies of the webpages they encounter.
+    Archiving: The downloaded webpages, along with their associated resources like images, stylesheets, and scripts, are stored in the Wayback Machine's vast archive. Each captured webpage is linked to a specific date and time, creating a historical snapshot of the website at that moment. This archiving process happens at regular intervals, sometimes daily, weekly, or monthly, depending on the website's popularity and frequency of updates.
+    Accessing: Users can access these archived snapshots through the Wayback Machine's interface. By entering a website's URL and selecting a date, you can view how the website looked at that specific point. The Wayback Machine allows you to browse individual pages and provides tools to search for specific terms within the archived content or download entire archived websites for offline analysis.
+
+
+The frequency with which the Wayback Machine archives a website varies. Some websites might be archived multiple times a day, while others might only have a few snapshots spread out over several years. Factors that influence this frequency include the website's popularity, its rate of change, and the resources available to the Internet Archive.
+
+It's important to note that the Wayback Machine does not capture every single webpage online. It prioritizes websites deemed to be of cultural, historical, or research value. Additionally, website owners can request that their content be excluded from the Wayback Machine, although this is not always guaranteed.
+
+The Wayback Machine is a treasure trove for web reconnaissance, offering information that can be instrumental in various scenarios. Its significance lies in its ability to unveil a website's past, providing valuable insights that may not be readily apparent in its current state:
+
+    Uncovering Hidden Assets and Vulnerabilities: The Wayback Machine allows you to discover old web pages, directories, files, or subdomains that might not be accessible on the current website, potentially exposing sensitive information or security flaws.
+    Tracking Changes and Identifying Patterns: By comparing historical snapshots, you can observe how the website has evolved, revealing changes in structure, content, technologies, and potential vulnerabilities.
+    Gathering Intelligence: Archived content can be a valuable source of OSINT, providing insights into the target's past activities, marketing strategies, employees, and technology choices.
+    Stealthy Reconnaissance: Accessing archived snapshots is a passive activity that doesn't directly interact with the target's infrastructure, making it a less detectable way to gather information.
+
+
+We can view the first archived version of HackTheBox by entering the page we are looking for into the Wayback Machine and selecting the earliest available capture date, being 2017-06-10 @ 04h23:01
+
 
 # Automating Recon
 
 ## Automating Recon
 
+Just discussed some automated recon tools
+
 # Skill Assessment
 
 ## Web Recon - Skills Assessment
 
+Most of the questions in the skill assesment were already answered when I did it in the past. But there was one new one:
+What is the API key the inlanefreight.htb developers will be changing too? 
+
+This discovers the vhost:
+```
+InformationGathering % ffuf -w /Users/noneya/Useful/SecLists/Discovery/DNS/subdomains-top1million-110000.txt:FUZZ -u http://inlanefreight.htb:46281 -H 'Host: FUZZ.inlanefreight.htb:46281' -fs 120
+```
+
+If you look at the robots.txt you see that there is a disallowed directory called admin_h1dd3n. 
+
+Running this:
+`ffuf -w /Users/noneya/Useful/SecLists/Discovery/Web-Content/directory-list-2.3-small.txt:FUZZ -u http://web1337.inlanefreight.htb:46281//admin_h1dd3n/FUZZ -e .html -ic`
+
+You find an index.html page that has an API key. But the question specifically is what is the one it will be changing to.
+
+Comments in the discussion said re-run the vhost scan.
+
+So running:
+`ffuf -w /Users/noneya/Useful/SecLists/Discovery/DNS/subdomains-top1million-110000.txt:FUZZ -u http://web1337.inlanefreight.htb:46281 -H 'Host: FUZZ.web1337.inlanefreight.htb:46281' -fs 120`
+
+I find a dev vhost. 
+
+Then if I run ReconSpider on that vhost I get the API key
 
