@@ -159,11 +159,149 @@ Gaining access as an administrator is usually needed to obtain code execution on
 
 ## Wordpress Core Version Enumeration
 
+It is always important to know what type of application we are working with. An essential part of the enumeration phase is uncovering the software version number. This is helpful when searching for common misconfigurations such as default passwords that may be set for certain versions of an application and searching for known vulnerabilities for a particular version number. We can use a variety of methods to discover the version number manually. The first and easiest step is reviewing the page source code. We can do this by right-clicking anywhere on the current page and selecting "View page source" from the menu or using the keyboard shortcut [CTRL + U].
 
+We can search for the meta generator tag using the shortcut [CTRL + F] in the browser or use cURL along with grep from the command line to filter for this information
+
+``` html
+...SNIP...
+<link rel='https://api.w.org/' href='http://blog.inlanefreight.com/index.php/wp-json/' />
+<link rel="EditURI" type="application/rsd+xml" title="RSD" href="http://blog.inlanefreight.com/xmlrpc.php?rsd" />
+<link rel="wlwmanifest" type="application/wlwmanifest+xml" href="http://blog.inlanefreight.com/wp-includes/wlwmanifest.xml" /> 
+<meta name="generator" content="WordPress 5.3.3" />
+...SNIP...
+```
+
+`curl -s -X GET http://blog.inlanefreight.com | grep '<meta name="generator"'`
+
+Aside from version information, the source code may also contain comments that may be useful. Links to CSS (style sheets) and JS (JavaScript) can also provide hints about the version number.
+
+``` html
+...SNIP...
+<link rel='stylesheet' id='bootstrap-css'  href='http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/bootstrap.css?ver=5.3.3' type='text/css' media='all' />
+<link rel='stylesheet' id='transportex-style-css'  href='http://blog.inlanefreight.com/wp-content/themes/ben_theme/style.css?ver=5.3.3' type='text/css' media='all' />
+<link rel='stylesheet' id='transportex_color-css'  href='http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/colors/default.css?ver=5.3.3' type='text/css' media='all' />
+<link rel='stylesheet' id='smartmenus-css'  href='http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/jquery.smartmenus.bootstrap.css?ver=5.3.3' type='text/css' media='all' />
+...SNIP...
+```
+
+``` html
+...SNIP...
+<script type='text/javascript' src='http://blog.inlanefreight.com/wp-includes/js/jquery/jquery.js?ver=1.12.4-wp'></script>
+<script type='text/javascript' src='http://blog.inlanefreight.com/wp-includes/js/jquery/jquery-migrate.min.js?ver=1.4.1'></script>
+<script type='text/javascript' src='http://blog.inlanefreight.com/wp-content/plugins/mail-masta/lib/subscriber.js?ver=5.3.3'></script>
+<script type='text/javascript' src='http://blog.inlanefreight.com/wp-content/plugins/mail-masta/lib/jquery.validationEngine-en.js?ver=5.3.3'></script>
+<script type='text/javascript' src='http://blog.inlanefreight.com/wp-content/plugins/mail-masta/lib/jquery.validationEngine.js?ver=5.3.3'></script>
+...SNIP...
+```
+
+In older WordPress versions, another source for uncovering version information is the readme.html file in WordPress's root directory.
 
 ## Plugins and Themes Enumeration
 
+We can also find information about the installed plugins by reviewing the source code manually by inspecting the page source or filtering for the information using cURL and other command-line utilities.
+
+```
+curl -s -X GET http://blog.inlanefreight.com | sed 's/href=/\n/g' | sed 's/src=/\n/g' | grep 'wp-content/plugins/*' | cut -d"'" -f2
+
+http://blog.inlanefreight.com/wp-content/plugins/wp-google-places-review-slider/public/css/wprev-public_combine.css?ver=6.1
+http://blog.inlanefreight.com/wp-content/plugins/mail-masta/lib/subscriber.js?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/plugins/mail-masta/lib/jquery.validationEngine-en.js?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/plugins/mail-masta/lib/jquery.validationEngine.js?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/plugins/wp-google-places-review-slider/public/js/wprev-public-com-min.js?ver=6.1
+http://blog.inlanefreight.com/wp-content/plugins/mail-masta/lib/css/mm_frontend.css?ver=5.3.3
+```
+
+```
+curl -s -X GET http://blog.inlanefreight.com | sed 's/href=/\n/g' | sed 's/src=/\n/g' | grep 'themes' | cut -d"'" -f2
+
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/bootstrap.css?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/style.css?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/colors/default.css?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/jquery.smartmenus.bootstrap.css?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/owl.carousel.css?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/owl.transitions.css?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/font-awesome.css?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/animate.css?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/magnific-popup.css?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/css/bootstrap-progressbar.min.css?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/js/navigation.js?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/js/bootstrap.min.js?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/js/jquery.smartmenus.js?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/js/jquery.smartmenus.bootstrap.js?ver=5.3.3
+http://blog.inlanefreight.com/wp-content/themes/ben_theme/js/owl.carousel.min.js?ver=5.3.3
+background: url("http://blog.inlanefreight.com/wp-content/themes/ben_theme/images/breadcrumb-back.jpg") #50b9ce;
+```
+
+The response headers may also contain version numbers for specific plugins.
+
+However, not all installed plugins and themes can be discovered passively. In this case, we have to send requests to the server actively to enumerate them. We can do this by sending a GET request that points to a directory or file that may exist on the server. If the directory or file does exist, we will either gain access to the directory or file or will receive a redirect response from the webserver, indicating that the content does exist. However, we do not have direct access to it.
+
+```
+curl -I -X GET http://blog.inlanefreight.com/wp-content/plugins/mail-masta
+
+HTTP/1.1 301 Moved Permanently
+Date: Wed, 13 May 2020 20:08:23 GMT
+Server: Apache/2.4.29 (Ubuntu)
+Location: http://blog.inlanefreight.com/wp-content/plugins/mail-masta/
+Content-Length: 356
+Content-Type: text/html; charset=iso-8859-1
+```
+
+If the content does not exist, we will receive a 404 Not Found error.
+
+```
+curl -I -X GET http://blog.inlanefreight.com/wp-content/plugins/someplugin
+
+HTTP/1.1 404 Not Found
+Date: Wed, 13 May 2020 20:08:18 GMT
+Server: Apache/2.4.29 (Ubuntu)
+Expires: Wed, 11 Jan 1984 05:00:00 GMT
+Cache-Control: no-cache, must-revalidate, max-age=0
+Link: <http://blog.inlanefreight.com/index.php/wp-json/>; rel="https://api.w.org/"
+Transfer-Encoding: chunked
+Content-Type: text/html; charset=UTF-8
+```
+
+The same applies to installed themes.
+
+To speed up enumeration, we could also write a simple bash script or use a tool such as wfuzz or WPScan, which automate the process.
+
 ## Directory Indexing
+
+Active plugins should not be our only area of focus when assessing a WordPress website. Even if a plugin is deactivated, it may still be accessible, and therefore we can gain access to its associated scripts and functions. Deactivating a vulnerable plugin does not improve the WordPress site's security. It is best practice to either remove or keep up-to-date any unused plugins.
+
+The following example shows a disabled plugin.
+
+If we browse to the plugins directory, we can see that we still have access to the Mail Masta plugin.
+
+We can also view the directory listing using cURL and convert the HTML output to a nice readable format using html2text.
+
+```
+curl -s -X GET http://blog.inlanefreight.com/wp-content/plugins/mail-masta/ | html2text
+
+****** Index of /wp-content/plugins/mail-masta ******
+[[ICO]]       Name                 Last_modified    Size Description
+===========================================================================
+[[PARENTDIR]] Parent_Directory                         -  
+[[DIR]]       amazon_api/          2020-05-13 18:01    -  
+[[DIR]]       inc/                 2020-05-13 18:01    -  
+[[DIR]]       lib/                 2020-05-13 18:01    -  
+[[   ]]       plugin-interface.php 2020-05-13 18:01  88K  
+[[TXT]]       readme.txt           2020-05-13 18:01 2.2K  
+===========================================================================
+     Apache/2.4.29 (Ubuntu) Server at blog.inlanefreight.com Port 80
+```
+
+This type of access is called Directory Indexing. It allows us to navigate the folder and access files that may contain sensitive information or vulnerable code. It is best practice to disable directory indexing on web servers so a potential attacker cannot gain direct access to any files or folders other than those necessary for the website to function properly.
+
+-----------------
+
+The question in this section is:
+Keep in mind the key WordPress directories discussed in the WordPress Structure section. Manually enumerate the target for any directories whose contents can be listed. Browse these directories and locate a flag with the file name flag.txt and submit its contents as the answer.
+
+
+
 
 ## User Enumeration
 
