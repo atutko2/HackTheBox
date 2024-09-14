@@ -301,19 +301,188 @@ The question in this section is:
 Keep in mind the key WordPress directories discussed in the WordPress Structure section. Manually enumerate the target for any directories whose contents can be listed. Browse these directories and locate a flag with the file name flag.txt and submit its contents as the answer.
 
 
-
+Doing exactly as it mentions above for mail-masta returns the same output. Then it is as simple as enumeration of the other dirs to find flag.txt. I could have used ffuf for this but I just did it manually.
 
 ## User Enumeration
 
+Enumerating a list of valid users is a critical phase of a WordPress security assessment. Armed with this list, we may be able to guess default credentials or perform a brute force password attack. If successful, we may be able to log in to the WordPress backend as an author or even as an administrator. This access can potentially be leveraged to modify the WordPress website or even interact with the underlying web server.
+
+There are two methods for performing manual username enumeration.
+
+The first method is reviewing posts to uncover the ID assigned to the user and their corresponding username. If we mouse over the post author link titled "by admin," as shown in the below image, a link to the user's account appears in the web browser's lower-left corner.
+
+The admin user is usually assigned the user ID 1. We can confirm this by specifying the user ID for the author parameter in the URL.
+
+```
+http://blog.inlanefreight.com/?author=1
+```
+
+This can also be done with cURL from the command line. The HTTP response in the below output shows the author that corresponds to the user ID. The URL in the Location header confirms that this user ID belongs to the admin user.
+
+```
+curl -s -I -X GET http://blog.inlanefreight.com/?author=1
+
+HTTP/1.1 301 Moved Permanently
+Date: Wed, 13 May 2020 20:47:08 GMT
+Server: Apache/2.4.29 (Ubuntu)
+X-Redirect-By: WordPress
+Location: http://blog.inlanefreight.com/index.php/author/admin/
+Content-Length: 0
+Content-Type: text/html; charset=UTF-8
+```
+
+The above cURL request then redirects us to the user's profile page or the main login page. If the user does not exist, we receive a 404 Not Found error.
+
+```
+curl -s -I -X GET http://blog.inlanefreight.com/?author=100
+
+HTTP/1.1 404 Not Found
+Date: Wed, 13 May 2020 20:47:14 GMT
+Server: Apache/2.4.29 (Ubuntu)
+Expires: Wed, 11 Jan 1984 05:00:00 GMT
+Cache-Control: no-cache, must-revalidate, max-age=0
+Link: <http://blog.inlanefreight.com/index.php/wp-json/>; rel="https://api.w.org/"
+Transfer-Encoding: chunked
+Content-Type: text/html; charset=UTF-8
+```
+
+The second method requires interaction with the JSON endpoint, which allows us to obtain a list of users. This was changed in WordPress core after version 4.7.1, and later versions only show whether a user is configured or not. Before this release, all users who had published a post were shown by default.
+
+```
+curl http://blog.inlanefreight.com/wp-json/wp/v2/users | jq
+
+[
+  {
+    "id": 1,
+    "name": "admin",
+    "url": "",
+    "description": "",
+    "link": "http://blog.inlanefreight.com/index.php/author/admin/",
+    <SNIP>
+  },
+  {
+    "id": 2,
+    "name": "ch4p",
+    "url": "",
+    "description": "",
+    "link": "http://blog.inlanefreight.com/index.php/author/ch4p/",
+    <SNIP>
+  },
+```
+
+----------------
+The question in this section is:
+From the last cURL command, what user name is assigned to User ID 2? 
+
+? what a stupid question... its literally just asking if we read like 5 lines above...
+
 ## Login 
+
+Once we are armed with a list of valid users, we can mount a password brute-forcing attack to attempt to gain access to the WordPress backend. This attack can be performed via the login page or the xmlrpc.php page.
+
+If our POST request against xmlrpc.php contains valid credentials, we will receive the following output:
+
+```
+curl -X POST -d "<methodCall><methodName>wp.getUsersBlogs</methodName><params><param><value>admin</value></param><param><value>CORRECT-PASSWORD</value></param></params></methodCall>" http://blog.inlanefreight.com/xmlrpc.php
+
+<?xml version="1.0" encoding="UTF-8"?>
+<methodResponse>
+  <params>
+    <param>
+      <value>
+      <array><data>
+  <value><struct>
+  <member><name>isAdmin</name><value><boolean>1</boolean></value></member>
+  <member><name>url</name><value><string>http://blog.inlanefreight.com/</string></value></member>
+  <member><name>blogid</name><value><string>1</string></value></member>
+  <member><name>blogName</name><value><string>Inlanefreight</string></value></member>
+  <member><name>xmlrpc</name><value><string>http://blog.inlanefreight.com/xmlrpc.php</string></value></member>
+</struct></value>
+</data></array>
+      </value>
+    </param>
+  </params>
+</methodResponse>
+```
+
+If the credentials are not valid, we will receive a 403 faultCode error.
+
+``` xml
+<?xml version="1.0" encoding="UTF-8"?>
+<methodResponse>
+  <fault>
+    <value>
+      <struct>
+        <member>
+          <name>faultCode</name>
+          <value><int>403</int></value>
+        </member>
+        <member>
+          <name>faultString</name>
+          <value><string>Incorrect username or password.</string></value>
+        </member>
+      </struct>
+    </value>
+  </fault>
+</methodResponse>
+```
+
+These last few sections introduced several methods for performing manual enumeration against a WordPress instance. It is essential to understand manual methods before attempting to use automated tools. While automated tools greatly speed up the penetration testing process, it is our responsibility to understand their impact on the systems we are assessing. A solid understanding of manual enumeration methods will also assist with troubleshooting should any automated tools not function properly or provide unexpected output.
+
+-----------------------
+Question in this section:
+Search for "WordPress xmlrpc attacks" and find out how to use it to execute all method calls. Enter the number of possible method calls of your target as the answer. 
+
+Searching finds [this page](https://the-bilal-rizwan.medium.com/wordpress-xmlrpc-php-common-vulnerabilites-how-to-exploit-them-d8d3c8600b32)
+
+Which calls out the `system.listMethods` method.
+
+So I can do:
+
+`curl -X POST -d "<methodCall><methodName>system.listMethods</methodName><params></params></methodCall>" http://94.237.59.63:43428/xmlrpc.php`
+
+to get all the methods. But the question is the total number.
+
+So I did this:
+`(curl -X POST -d "<methodCall><methodName>system.listMethods</methodName><params></params></methodCall>" http://94.237.59.63:43428/xmlrpc.php ) | grep "value" | wc -l`
+
+This returns 2 more than the actual value of methods
 
 ## WPScan Overview
 
+WPScan is an automated WordPress scanner and enumeration tool. It determines if the various themes and plugins used by a WordPress site are outdated or vulnerable. It is installed by default on Parrot OS but can also be installed manually with gem.
+
+
+Once the installation completes, we can issue a command such as wpscan --hh to verify the installation. This command will show us the usage menu with all of the available command-line switches.
+
+There are various enumeration options that can be specified, such as vulnerable plugins, all plugins, user enumeration, and more. It is important to understand all of the options available to us and fine-tune the scanner depending on the goal (i.e., are we just interested to see if the WordPress site is using any vulnerable plugins, do we need to perform a full audit of all aspects of the site or are we just interested in creating a user list to use in a brute force password guessing attack?).
+
+WPScan can pull in vulnerability information from external sources to enhance our scans. We can obtain an API token from WPVulnDB, which is used by WPScan to scan for vulnerability and exploit proof of concepts (POC) and reports. The free plan allows up to 50 requests per day. To use the WPVulnDB database, just create an account and copy the API token from the users page. This token can then be supplied to WPScan using the --api-token parameter.
+
+Review the various WPScan options using the below Parrot instance by opening a shell and issuing the command wpscan --hh.
+
 ## WPScan Enumeration
+
+The --enumerate flag is used to enumerate various components of the WordPress application such as plugins, themes, and users. By default, WPScan enumerates vulnerable plugins, themes, users, media, and backups. However, specific arguments can be supplied to restrict enumeration to specific components. For example, all plugins can be enumerated using the arguments --enumerate ap. Let's run a normal enumeration scan against a WordPress website.
+
+Note: The default number of threads used is 5, however, this value can be changed using the "-t" flag.
+
+`wpscan --url http://blog.inlanefreight.com --enumerate --api-token Kffr4fdJzy9qVcTk<SNIP>`
+
+---------------------
+Question in this section:
+Enumerate the provided WordPress instance for all installed plugins. Perform a scan with WPScan against the target and submit the version of the vulnerable plugin named “photo-gallery”. 
+
+`wpscan --url http://94.237.59.63:43428 --enumerate --api-token [this is a secret good luck kid]`
+
+Answer was
+1.5.34
 
 # Exploitation
 
 ## Exploiting a Vulnerable Plugin
+
+
 
 ## Attacking WordPress Users
 
